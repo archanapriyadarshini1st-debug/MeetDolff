@@ -9,14 +9,15 @@
  *  - calendar (keyPath: id, index: startsAt)
  *  - projects (keyPath: id, index: meetingId)
  *  - audio (keyPath: meetingId) -> { meetingId, blob, mime, createdAt }
+ *  - snapshots (keyPath: id, index: meetingId) -> user-triggered tab screenshots
  *  - kv (keyPath: key) -> { key, value } for handles, settings mirror, etc.
  */
 
 import { openDB, type IDBPDatabase } from 'idb';
-import type { CalendarEvent, Meeting, ProjectPlan } from './types.js';
+import type { CalendarEvent, Meeting, MeetingSnapshot, ProjectPlan } from './types.js';
 
 const DB_NAME = 'meetdolff';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export interface AudioRecord {
   meetingId: string;
@@ -65,6 +66,11 @@ export interface MeetDolffDBTypes {
     value: AudioChunkRecord;
     indexes: { sessionId: string };
   };
+  snapshots: {
+    key: string;
+    value: MeetingSnapshot;
+    indexes: { meetingId: string };
+  };
   kv: {
     key: string;
     value: KvRecord;
@@ -97,6 +103,10 @@ export function getDb(): Promise<MeetDolffDB> {
         if (!db.objectStoreNames.contains('audioChunks')) {
           const s = db.createObjectStore('audioChunks', { keyPath: 'key' });
           s.createIndex('sessionId', 'sessionId', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('snapshots')) {
+          const s = db.createObjectStore('snapshots', { keyPath: 'id' });
+          s.createIndex('meetingId', 'meetingId', { unique: false });
         }
         if (!db.objectStoreNames.contains('kv')) {
           db.createObjectStore('kv', { keyPath: 'key' });
@@ -131,10 +141,40 @@ export async function listMeetings(limit = 100): Promise<Meeting[]> {
 
 export async function deleteMeeting(id: string): Promise<void> {
   const db = await getDb();
-  const tx = db.transaction(['meetings', 'audio'], 'readwrite');
+  const tx = db.transaction(['meetings', 'audio', 'snapshots'], 'readwrite');
   await tx.objectStore('meetings').delete(id);
   await tx.objectStore('audio').delete(id);
+  for (const key of await tx.objectStore('snapshots').index('meetingId').getAllKeys(id)) {
+    await tx.objectStore('snapshots').delete(key);
+  }
   await tx.done;
+}
+
+export async function putSnapshot(s: MeetingSnapshot): Promise<void> {
+  const db = await getDb();
+  await db.put('snapshots', s);
+}
+
+/** Snapshots for a meeting (or an in-progress recording session), oldest first. */
+export async function listSnapshots(meetingId: string): Promise<MeetingSnapshot[]> {
+  const db = await getDb();
+  const all = await db.getAllFromIndex('snapshots', 'meetingId', meetingId);
+  return all.sort((a, b) => a.offsetSec - b.offsetSec);
+}
+
+/** Re-key snapshots taken during a recording session to the saved meeting id. */
+export async function reassignSnapshots(fromId: string, toId: string): Promise<number> {
+  const db = await getDb();
+  const tx = db.transaction('snapshots', 'readwrite');
+  const rows = await tx.store.index('meetingId').getAll(fromId);
+  for (const row of rows) await tx.store.put({ ...row, meetingId: toId });
+  await tx.done;
+  return rows.length;
+}
+
+export async function deleteSnapshot(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete('snapshots', id);
 }
 
 export async function putAudio(rec: AudioRecord): Promise<void> {
