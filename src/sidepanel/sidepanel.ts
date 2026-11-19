@@ -14,7 +14,7 @@ import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-inte
 import { putProject, putMeeting } from '../lib/db.js';
 import { formatDateTime } from '../lib/utils/id.js';
 import type { Meeting, ProviderSettings } from '../lib/types.js';
-import { DEFAULT_PROVIDER_SETTINGS } from '../lib/types.js';
+import { loadProviderSettings } from '../lib/settings-store.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -43,8 +43,7 @@ function showSuccess(msg: string): void {
 }
 
 async function loadSettings(): Promise<ProviderSettings> {
-  const res = (await chrome.storage.local.get('providerSettings')) as any;
-  return { ...DEFAULT_PROVIDER_SETTINGS, ...(res?.providerSettings ?? {}) };
+  return loadProviderSettings();
 }
 
 function addMsg(role: 'user' | 'assistant', content: string, sources?: string): void {

@@ -1,6 +1,6 @@
 /**
  * Settings: BYOK provider config, memory folder, data controls.
- * API keys: chrome.storage.local only. Never logged.
+ * API keys: encrypted vault (AES-GCM, non-extractable key) — never in chrome.storage. Never logged.
  */
 
 import '../styles/design-system.css';
@@ -8,6 +8,8 @@ import { DEFAULT_PROVIDER_SETTINGS, type ProviderSettings } from '../lib/types.j
 import { createProvider } from '../lib/ai/provider.js';
 import { getStoredFolder, importMeetingsFromFolder, pickMemoryFolder, isFileSystemAccessSupported } from '../lib/memory-files.js';
 import { kvDelete } from '../lib/db.js';
+import { clearProviderSettings, loadProviderSettings, saveProviderSettings } from '../lib/settings-store.js';
+import { wipeVault } from '../lib/secrets.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const errorBox = $('errorBox');
@@ -31,8 +33,7 @@ function showSuccess(msg: string): void {
 }
 
 async function load(): Promise<void> {
-  const res = (await chrome.storage.local.get('providerSettings')) as any;
-  const s: ProviderSettings = { ...DEFAULT_PROVIDER_SETTINGS, ...(res?.providerSettings ?? {}) };
+  const s = await loadProviderSettings();
   ($('aiProvider') as HTMLSelectElement).value = s.aiProvider;
   ($('baseUrl') as HTMLInputElement).value = s.baseUrl;
   ($('chatModel') as HTMLInputElement).value = s.chatModel;
@@ -56,8 +57,7 @@ async function refreshFolderStatus(): Promise<void> {
 
 $('btnSave').addEventListener('click', async () => {
   showError(null);
-  const prev = (await chrome.storage.local.get('providerSettings')) as any;
-  const prevSettings: ProviderSettings = { ...DEFAULT_PROVIDER_SETTINGS, ...(prev?.providerSettings ?? {}) };
+  const prevSettings = await loadProviderSettings();
   const newKey = ($('apiKey') as HTMLInputElement).value.trim();
   const newSearchKey = ($('searchApiKey') as HTMLInputElement).value.trim();
   const settings: ProviderSettings = {
@@ -70,7 +70,7 @@ $('btnSave').addEventListener('click', async () => {
     searchProvider: ($('searchProvider') as HTMLSelectElement).value as ProviderSettings['searchProvider'],
     searchApiKey: newSearchKey || prevSettings.searchApiKey,
   };
-  await chrome.storage.local.set({ providerSettings: settings });
+  await saveProviderSettings(settings);
   if (chrome.permissions?.request) {
     const origins: string[] = [];
     if (settings.aiProvider === 'anthropic') origins.push('https://api.anthropic.com/*');
@@ -98,8 +98,7 @@ $('btnTest').addEventListener('click', async () => {
   const out = $('testResult');
   out.textContent = 'Testing…';
   try {
-    const res = (await chrome.storage.local.get('providerSettings')) as any;
-    const s: ProviderSettings = { ...DEFAULT_PROVIDER_SETTINGS, ...(res?.providerSettings ?? {}) };
+    const s = await loadProviderSettings();
     if (!s.apiKey) throw new Error('No API key saved. Save a key first.');
     const provider = createProvider(s, s.aiProvider);
     await provider.chat([{ role: 'user', content: 'Reply with the single word: ok' }]);
@@ -147,7 +146,8 @@ $('btnWipe').addEventListener('click', async () => {
     req.onerror = () => resolve();
     req.onblocked = () => resolve();
   });
-  await chrome.storage.local.remove(['providerSettings']);
+  await clearProviderSettings();
+  await wipeVault();
   showSuccess('All local data deleted.');
   await load();
 });
