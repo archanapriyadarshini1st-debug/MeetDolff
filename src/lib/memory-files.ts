@@ -12,7 +12,7 @@
  * restart (queryPermission / requestPermission).
  */
 
-import { kvGet, kvSet } from './db.js';
+import { kvGet, kvSet, putMeeting } from './db.js';
 import { MEMORY_FORMAT_VERSION, type Meeting } from './types.js';
 
 const HANDLE_KEY = 'memoryDirHandle';
@@ -131,8 +131,47 @@ export async function exportMeetingToFolder(root: FileSystemDirectoryHandle, m: 
   await updateIndex(root);
 }
 
+export async function importMeetingsFromFolder(root: FileSystemDirectoryHandle): Promise<number> {
+  if (!(await ensurePermission(root))) {
+    throw new Error('Folder permission denied. Re-select the memory folder in Settings.');
+  }
+  let dir: FileSystemDirectoryHandle;
+  try {
+    dir = await root.getDirectoryHandle(MEETINGS_DIR, { create: false });
+  } catch {
+    return 0;
+  }
+  let imported = 0;
+  for await (const entry of (dir as any).values()) {
+    if (entry.kind !== 'file' || !String(entry.name).endsWith('.json')) continue;
+    try {
+      const file = await (entry as FileSystemFileHandle).getFile();
+      const value = JSON.parse(await file.text()) as Meeting;
+      if (!isMeetingRecord(value)) continue;
+      await putMeeting(value);
+      imported += 1;
+    } catch {
+      // Skip malformed/unrelated JSON files; never partially write a record.
+    }
+  }
+  return imported;
+}
+
+function isMeetingRecord(value: unknown): value is Meeting {
+  if (!value || typeof value !== 'object') return false;
+  const m = value as Partial<Meeting>;
+  return typeof m.id === 'string'
+    && typeof m.title === 'string'
+    && typeof m.startedAt === 'string'
+    && typeof m.endedAt === 'string'
+    && Array.isArray(m.transcript)
+    && Array.isArray(m.decisions)
+    && Array.isArray(m.actionItems)
+    && typeof m.memoryVersion === 'number';
+}
+
 export async function updateIndex(root: FileSystemDirectoryHandle): Promise<void> {
-  // Index is rebuilt from meetings dir listing (filenames only).
+  // Index is rebuilt from meetings dir listing (filenames only). 
   // Full meeting list lives in IndexedDB; index.json is a portable manifest.
   const dir = await ensureMeetingsDir(root);
   const ids: string[] = [];
