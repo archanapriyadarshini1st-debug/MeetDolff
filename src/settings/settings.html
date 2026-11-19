@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MeetDolff — Settings</title>
+    <link rel="stylesheet" href="../styles/design-system.css" />
+  </head>
+  <body>
+    <div class="md-wrap" style="max-width:720px">
+      <header class="md-header">
+        <p class="md-eyebrow">MeetDolff · Settings</p>
+        <h1 class="md-title">Providers &amp; memory</h1>
+        <p class="md-sub">Bring your own API key. Keys stay in <span class="mono">chrome.storage.local</span> — never sync, never logs, never page scripts.</p>
+      </header>
+
+      <section class="panel">
+        <h2 style="margin:0 0 10px; font-size:16px">AI provider</h2>
+        <div class="field">
+          <label for="aiProvider">Chat adapter</label>
+          <select id="aiProvider">
+            <option value="openai">OpenAI-compatible (OpenAI, Groq, Ollama…)</option>
+            <option value="anthropic">Anthropic Messages</option>
+            <option value="gemini">Google Gemini</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="baseUrl">OpenAI-compatible base URL</label>
+          <input id="baseUrl" type="url" placeholder="https://api.openai.com/v1" />
+          <p class="hint">Works with OpenAI, Groq, Together, local Ollama/LM Studio, etc.</p>
+        </div>
+        <div class="field">
+          <label for="chatModel">Chat model</label>
+          <input id="chatModel" type="text" placeholder="gpt-4o-mini" />
+        </div>
+        <div class="field">
+          <label for="apiKey">API key</label>
+          <input id="apiKey" type="password" autocomplete="off" placeholder="sk-…" />
+          <p class="hint">Stored locally only. Leave blank to keep the saved key.</p>
+        </div>
+        <div class="field">
+          <label for="transcriptionProvider">Transcription</label>
+          <select id="transcriptionProvider">
+            <option value="web-speech">Web Speech API (local, no key, live mic)</option>
+            <option value="cloud">Cloud Whisper (recorded audio → text)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="transcriptionModel">Transcription model (cloud)</label>
+          <input id="transcriptionModel" type="text" placeholder="whisper-1" />
+        </div>
+        <div class="field">
+          <label for="searchProvider">Web search for AI</label>
+          <select id="searchProvider">
+            <option value="none">Off</option>
+            <option value="tavily">Tavily</option>
+            <option value="brave">Brave Search</option>
+          </select>
+          <p class="hint">External research is always labeled separately from meeting memory.</p>
+        </div>
+        <div class="field">
+          <label for="searchApiKey">Search API key</label>
+          <input id="searchApiKey" type="password" autocomplete="off" placeholder="Optional" />
+        </div>
+        <div class="toolbar">
+          <button id="btnSave" class="btn btn-primary">Save settings</button>
+          <button id="btnTest" class="btn">Test connection</button>
+          <span id="testResult" class="small muted"></span>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:14px">
+        <h2 style="margin:0 0 10px; font-size:16px">Memory folder</h2>
+        <p class="muted small">Portable memory files (<span class="mono">MeetDolff Memory/index.json + meetings/*.md|json</span>). IndexedDB remains the source of truth; files are exports.</p>
+        <div class="toolbar">
+          <button id="btnPickFolder" class="btn">Choose folder…</button>
+          <button id="btnClearFolder" class="btn btn-ghost">Forget folder</button>
+          <span id="folderStatus" class="small muted"></span>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:14px">
+        <h2 style="margin:0 0 10px; font-size:16px">Data &amp; privacy</h2>
+        <p class="muted small">Meetings, transcripts, and audio live in IndexedDB on this device. Deleting a meeting removes its audio too. No remote code runs in this extension.</p>
+        <div class="toolbar">
+          <button id="btnWipe" class="btn btn-danger">Delete all local data</button>
+        </div>
+      </section>
+
+      <div id="errorBox" style="margin-top:12px"></div>
+    </div>
+    <script type="module" src="./settings.ts"></script>
+  </body>
+</html>
