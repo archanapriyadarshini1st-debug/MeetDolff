@@ -78,16 +78,22 @@ async function refreshRecent(): Promise<void> {
   }
 }
 
+function timestamp(seconds: number): string {
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+}
+
 function buildContext(meetings: Meeting[], scope: string, query: string): { context: string; sources: string } {
   let pool = meetings;
   if (scope === 'latest' && meetings.length) pool = [meetings[0]!];
-  // Prefer search-ranked results when query is specific
+  // Prefer search-ranked results when query is specific.
   const ranked = query ? searchMeetings(pool, query) : [];
   const chosen = ranked.length ? ranked.slice(0, 5).map((r) => r.meeting) : pool.slice(0, 5);
-  const parts = chosen.map(
-    (m) =>
-      `[${m.title} | ${m.startedAt}]\nSummary: ${m.summary ?? '—'}\nDecisions: ${m.decisions.map((d) => d.text).join('; ') || '—'}\nActions: ${m.actionItems.map((a) => a.text).join('; ') || '—'}\nTranscript excerpt: ${m.transcriptText.slice(0, 3000)}`,
-  );
+  const parts = chosen.map((m) => {
+    const transcript = m.transcript.length
+      ? m.transcript.map((seg) => `[${timestamp(seg.start)}] ${seg.speaker ? `${seg.speaker}: ` : ''}${seg.text}`).join('\n')
+      : m.transcriptText;
+    return `[${m.title} | ${m.startedAt}]\nSummary: ${m.summary ?? '—'}\nDecisions: ${m.decisions.map((d) => `${d.text}${d.evidence.length ? ` (evidence: ${d.evidence.join(', ')})` : ''}`).join('; ') || '—'}\nActions: ${m.actionItems.map((a) => `${a.text}${a.owner ? ` (owner: ${a.owner})` : ''}${a.deadline ? ` (deadline: ${a.deadline})` : ''}`).join('; ') || '—'}\nTranscript with timestamps:\n${transcript.slice(0, 9000)}`;
+  });
   const sources = chosen.map((m) => m.title).join(', ');
   return { context: parts.join('\n\n---\n\n'), sources };
 }
