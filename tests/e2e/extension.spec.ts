@@ -13,8 +13,9 @@ const DIST = resolve(process.cwd(), 'dist');
 
 async function extensionContext() {
   return chromium.launchPersistentContext('', {
-    // Chromium disables extension loading in its headless shell; run via xvfb for real Chrome.
-    headless: false,
+    // Chromium's *headless shell* cannot load extensions. Either run headed (PW_HEADED=1, e.g. under xvfb)
+    // or use the full Chromium build in new-headless mode, which does support extensions.
+    ...(process.env.PW_HEADED ? { headless: false } : { channel: 'chromium' as const, headless: true }),
     args: [
       `--disable-extensions-except=${DIST}`,
       `--load-extension=${DIST}`,
