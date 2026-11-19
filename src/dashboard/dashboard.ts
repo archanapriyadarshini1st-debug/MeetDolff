@@ -3,12 +3,17 @@
  */
 
 import '../styles/design-system.css';
-import { getAudio, listMeetings, listCalendarEvents, putCalendarEvent, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
+import { getAudio, putMeeting, listMeetings, listCalendarEvents, putCalendarEvent, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
 import { searchMeetings } from '../lib/search.js';
 import { createEvent, formatTime } from '../lib/calendar/calendar.js';
 import { downloadMeeting, exportMeetingToFolder, getStoredFolder, pickMemoryFolder, isFileSystemAccessSupported } from '../lib/memory-files.js';
 import { formatDateTime } from '../lib/utils/id.js';
 import type { Meeting } from '../lib/types.js';
+import { mountTranscript } from './transcript-editor.js';
+import { loadProviderSettings } from '../lib/settings-store.js';
+import { createProvider } from '../lib/ai/provider.js';
+import { SUMMARY_SYSTEM, summaryPrompt } from '../lib/ai/prompts.js';
+import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-intelligence.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const searchInput = $('searchInput') as HTMLInputElement;
@@ -81,7 +86,7 @@ async function showDetail(id: string): Promise<void> {
       <button class="btn btn-sm" data-act="delete">Delete</button>
     </div>
     <div class="audio-wrap"></div>
-    <h4>Summary</h4><p class="summary"></p>
+    <h4>Summary</h4><div class="stale-box"></div><p class="summary"></p>
     <h4>Decisions</h4><ul class="decisions"></ul>
     <h4>Action items</h4><ul class="actions"></ul>
     <h4>Transcript</h4><div class="transcript"></div>
@@ -115,24 +120,54 @@ async function showDetail(id: string): Promise<void> {
     label.textContent = 'Saved recording';
     wrap.querySelector('.audio-wrap')!.append(label, audio);
   }
-  const tr = wrap.querySelector('.transcript')!;
-  for (const seg of m.transcript) {
-    const div = document.createElement('div');
-    div.className = 'seg';
-    const t = document.createElement('span');
-    t.className = 't';
-    t.textContent = `[${String(Math.floor(seg.start / 60)).padStart(2, '0')}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}]`;
-    const body = document.createElement('span');
-    if (seg.speaker) {
-      const spk = document.createElement('span');
-      spk.className = 'spk';
-      spk.textContent = `${seg.speaker}: `;
-      body.appendChild(spk);
-    }
-    body.appendChild(document.createTextNode(seg.text));
-    div.append(t, body);
-    tr.appendChild(div);
-  }
+  const audioEl = wrap.querySelector('audio');
+  mountTranscript(wrap.querySelector('.transcript') as HTMLElement, m, {
+    seek: (sec) => {
+      if (!audioEl) return showError('No saved audio for this meeting.');
+      audioEl.currentTime = sec;
+      void audioEl.play().catch(() => undefined);
+    },
+    onError: (msg) => showError(msg),
+    onSave: async (updated) => {
+      await putMeeting(updated);
+      allMeetings = allMeetings.map((x) => (x.id === updated.id ? updated : x));
+      renderStale(updated);
+      showSuccess('Correction saved. Re-export to the memory folder to update your files.');
+    },
+  });
+  const staleBox = wrap.querySelector('.stale-box') as HTMLElement;
+  const renderStale = (cur: Meeting): void => {
+    staleBox.replaceChildren();
+    if (!cur.summaryStale) return;
+    const note = document.createElement('p');
+    note.className = 'small';
+    note.textContent = 'The transcript was edited after this summary was written, so the summary, decisions and actions may be out of date.';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-primary';
+    btn.textContent = 'Re-summarize from edited transcript';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Summarizing…';
+      try {
+        const latest = allMeetings.find((x) => x.id === cur.id) ?? cur;
+        const settings = await loadProviderSettings();
+        const result = await createProvider(settings, settings.aiProvider).chat([
+          { role: 'system', content: SUMMARY_SYSTEM },
+          { role: 'user', content: summaryPrompt(latest.transcriptText) },
+        ]);
+        await putMeeting({ ...applyMeetingSummary(latest, parseMeetingSummary(result.text)), summaryStale: false });
+        await refreshMeetings();
+        await showDetail(cur.id);
+        showSuccess('Summary regenerated from the corrected transcript.');
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Re-summarize from edited transcript';
+        showError(e instanceof Error ? e.message : 'Re-summarize failed.');
+      }
+    });
+    staleBox.append(note, btn);
+  };
+  renderStale(m);
   wrap.querySelector('[data-act="download"]')!.addEventListener('click', () => downloadMeeting(m));
   wrap.querySelector('[data-act="export"]')!.addEventListener('click', async () => {
     showError(null);
