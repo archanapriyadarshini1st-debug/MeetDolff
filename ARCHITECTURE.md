@@ -56,6 +56,7 @@ Chunks stream via `ondataavailable` (1s). Each chunk is sent to the service work
 - Chrome extensions **cannot** capture native desktop apps. Roadmap: optional native companion (system audio via OS APIs) — not in v0.1.
 - `tabCapture` requires the tab to be audible; muted tabs yield silence.
 - Mic+tab mixing can echo. Mitigation: prefer tab-only for meetings; mic for in-person.
+- Screenshot-at-timestamp is not part of v0.1: `captureVisibleTab` only sees the visible browser tab/window, not a background tab or native desktop app. It is a planned optional snapshot path, not silently claimed as implemented.
 
 ## 4. Transcription
 
