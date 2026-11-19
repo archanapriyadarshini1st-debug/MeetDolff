@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MeetDolff</title>
+    <link rel="stylesheet" href="../styles/design-system.css" />
+  </head>
+  <body>
+    <div class="popup-wrap">
+      <p class="md-eyebrow">MeetDolff</p>
+      <h1 class="md-title">Record &amp; remember</h1>
+      <p class="md-sub small">Explicit recording only. Tab audio + optional mic. Local-first memory.</p>
+
+      <div style="margin-top:12px">
+        <span id="statusBadge" class="badge"><span class="dot"></span><span id="statusText">Idle</span></span>
+        <span id="timer" class="timer" style="margin-left:10px">00:00</span>
+      </div>
+
+      <div class="rec-controls">
+        <button id="btnStartTab" class="btn btn-primary">● Record tab</button>
+        <button id="btnStartMic" class="btn">Record mic</button>
+        <button id="btnPause" class="btn" disabled>Pause</button>
+        <button id="btnStop" class="btn btn-danger" disabled>Stop</button>
+      </div>
+
+      <div class="field">
+        <label for="audioSource">Audio source</label>
+        <select id="audioSource">
+          <option value="tab">Tab audio only</option>
+          <option value="mic">Microphone only</option>
+          <option value="tab+mic">Tab + mic</option>
+        </select>
+      </div>
+
+      <div id="errorBox"></div>
+
+      <div style="display:flex; gap:8px; margin-top:10px">
+        <button id="btnOpenSide" class="btn btn-sm">Open side panel</button>
+        <button id="btnOpenDash" class="btn btn-sm">Dashboard</button>
+        <button id="btnOpenSettings" class="btn btn-sm btn-ghost">Settings</button>
+      </div>
+
+      <p class="muted small" style="margin-top:12px">
+        Chrome can only capture browser-tab audio. Native apps (Zoom desktop, etc.) need a companion — see ARCHITECTURE.md.
+      </p>
+    </div>
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>
