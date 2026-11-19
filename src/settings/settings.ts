@@ -13,7 +13,21 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const errorBox = $('errorBox');
 
 function showError(msg: string | null): void {
-  errorBox.innerHTML = msg ? `<div class="error" role="alert">${msg}</div>` : '';
+  errorBox.replaceChildren();
+  if (!msg) return;
+  const box = document.createElement('div');
+  box.className = 'error';
+  box.setAttribute('role', 'alert');
+  box.textContent = msg;
+  errorBox.appendChild(box);
+}
+
+function showSuccess(msg: string): void {
+  errorBox.replaceChildren();
+  const box = document.createElement('div');
+  box.className = 'ok-box';
+  box.textContent = msg;
+  errorBox.appendChild(box);
 }
 
 async function load(): Promise<void> {
@@ -76,7 +90,7 @@ $('btnSave').addEventListener('click', async () => {
   }
   ($('apiKey') as HTMLInputElement).value = '';
   ($('searchApiKey') as HTMLInputElement).value = '';
-  errorBox.innerHTML = '<div class="ok-box">Settings saved locally.</div>';
+  showSuccess('Settings saved locally.');
   await load();
 });
 
@@ -121,7 +135,7 @@ $('btnWipe').addEventListener('click', async () => {
     req.onblocked = () => resolve();
   });
   await chrome.storage.local.remove(['providerSettings']);
-  errorBox.innerHTML = '<div class="ok-box">All local data deleted.</div>';
+  showSuccess('All local data deleted.');
   await load();
 });
 
