@@ -36,6 +36,19 @@
 
       <div id="errorBox" style="margin-top:10px"></div>
 
+      <h2 style="font-size:15px; margin:22px 0 6px">Questions to consider</h2>
+      <p id="sugStatus" class="muted small" aria-live="polite">Waiting for conversation.</p>
+      <ul id="sugList" class="sug-list" aria-label="Suggested questions"></ul>
+      <details class="sug-manual">
+        <summary class="small">Paste what was just said</summary>
+        <textarea id="sugManual" rows="4" placeholder="Paste a few sentences from the conversation…" aria-label="Recent conversation text"></textarea>
+        <div class="toolbar">
+          <button id="sugRun" type="button" class="btn btn-sm">Suggest questions</button>
+          <button id="sugClear" type="button" class="btn btn-sm btn-ghost">Clear</button>
+        </div>
+      </details>
+      <label class="small muted sug-ai"><input id="sugUseAi" type="checkbox" /> Use my AI provider for live suggestions (sends the last ~2 minutes of transcript text to the provider you configured)</label>
+
       <h2 style="font-size:15px; margin:22px 0 6px">Recent meetings</h2>
       <div id="recentList"></div>
     </div>
