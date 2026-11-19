@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'test-results/**', 'coverage/**'],
+    ignores: ['dist/**', 'dist-companion/**', 'node_modules/**', 'test-results/**', 'coverage/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -19,6 +19,12 @@ export default tseslint.config(
       // Browser/Chrome extension APIs are intentionally typed at the boundary.
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly' },
     },
   },
 );
