@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MeetDolff — Side panel</title>
+    <link rel="stylesheet" href="../styles/design-system.css" />
+  </head>
+  <body>
+    <div class="side-wrap">
+      <p class="md-eyebrow">MeetDolff · Memory</p>
+      <h1 class="md-title">Ask your meetings</h1>
+      <p class="md-sub small">Grounded answers with meeting + timestamp citations. If memory has no answer, it says so.</p>
+
+      <div class="toolbar">
+        <button id="btnTranscribe" class="btn btn-sm">Transcribe latest</button>
+        <button id="btnSummarize" class="btn btn-sm">Summarize latest</button>
+        <button id="btnProject" class="btn btn-sm">Convert to project</button>
+        <button id="btnReport" class="btn btn-sm">Report</button>
+        <button id="btnFlash" class="btn btn-sm">Flashcards</button>
+        <button id="btnQuiz" class="btn btn-sm">Quiz</button>
+        <button id="btnMindmap" class="btn btn-sm">Mind map</button>
+      </div>
+
+      <div id="artifactBox"></div>
+
+      <h2 style="font-size:15px; margin:18px 0 6px">Chat with memory</h2>
+      <div id="chatLog" class="chat-log" aria-live="polite"></div>
+      <div class="chat-input">
+        <input id="chatInput" type="text" placeholder="e.g. What happened last Tuesday at 7pm?" aria-label="Ask about meetings" />
+        <button id="btnAsk" class="btn btn-primary">Ask</button>
+      </div>
+      <p class="muted small">Scope: <label><input type="radio" name="scope" value="all" checked /> All meetings</label>
+        <label style="margin-left:10px"><input type="radio" name="scope" value="latest" /> Latest only</label>
+      </p>
+
+      <div id="errorBox" style="margin-top:10px"></div>
+
+      <h2 style="font-size:15px; margin:22px 0 6px">Recent meetings</h2>
+      <div id="recentList"></div>
+    </div>
+    <script type="module" src="./sidepanel.ts"></script>
+  </body>
+</html>
