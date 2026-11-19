@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0a0a;
+  --ink: #f2f0eb;
+  --muted: #9a9892;
+  --faint: #5f5e5a;
+  --line: #262624;
+  --line-strong: #3b3b38;
+  --danger: #e5484d;
+  --ok: #8fd19e;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+html { background: var(--bg); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.serif { font-family: var(--serif); letter-spacing: -0.01em; }
+.mono { font-family: var(--mono); }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.rule { border-top: 1px solid var(--line); }
+
+.btn {
+  font: inherit; font-size: 13px; padding: 8px 14px; border: 1px solid var(--line-strong);
+  background: transparent; color: var(--ink); cursor: pointer; border-radius: 2px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.btn:hover:not(:disabled) { border-color: var(--ink); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn-solid:hover:not(:disabled) { background: #fff; }
+.btn-quiet { border-color: transparent; color: var(--muted); padding-inline: 6px; }
+.btn-quiet:hover:not(:disabled) { color: var(--ink); border-color: transparent; }
+.btn-danger:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+
+.field {
+  width: 100%; font: inherit; color: var(--ink); background: transparent;
+  border: 1px solid var(--line-strong); border-radius: 2px; padding: 9px 11px;
+}
+.field::placeholder { color: var(--faint); }
+
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+pre.code {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.6; overflow-x: auto;
+  border: 1px solid var(--line); padding: 14px 16px; margin: 0; color: var(--ink); background: #0f0f0e;
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

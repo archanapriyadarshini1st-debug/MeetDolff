@@ -3,11 +3,12 @@
  */
 
 import '../styles/design-system.css';
-import { getAudio, listMeetings, listCalendarEvents, putCalendarEvent, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
+import { getAudio, listMeetings, putMeeting, listCalendarEvents, putCalendarEvent, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
 import { searchMeetings } from '../lib/search.js';
 import { createEvent, formatTime } from '../lib/calendar/calendar.js';
 import { downloadMeeting, exportMeetingToFolder, getStoredFolder, pickMemoryFolder, isFileSystemAccessSupported } from '../lib/memory-files.js';
 import { formatDateTime } from '../lib/utils/id.js';
+import { renderTranscript } from './transcript-editor.js';
 import type { Meeting } from '../lib/types.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -116,23 +117,11 @@ async function showDetail(id: string): Promise<void> {
     wrap.querySelector('.audio-wrap')!.append(label, audio);
   }
   const tr = wrap.querySelector('.transcript')!;
-  for (const seg of m.transcript) {
-    const div = document.createElement('div');
-    div.className = 'seg';
-    const t = document.createElement('span');
-    t.className = 't';
-    t.textContent = `[${String(Math.floor(seg.start / 60)).padStart(2, '0')}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}]`;
-    const body = document.createElement('span');
-    if (seg.speaker) {
-      const spk = document.createElement('span');
-      spk.className = 'spk';
-      spk.textContent = `${seg.speaker}: `;
-      body.appendChild(spk);
-    }
-    body.appendChild(document.createTextNode(seg.text));
-    div.append(t, body);
-    tr.appendChild(div);
-  }
+  renderTranscript(tr as HTMLElement, m, async (updated) => {
+    await putMeeting(updated);
+    await refreshMeetings();
+    await showDetail(updated.id);
+  });
   wrap.querySelector('[data-act="download"]')!.addEventListener('click', () => downloadMeeting(m));
   wrap.querySelector('[data-act="export"]')!.addEventListener('click', async () => {
     showError(null);

@@ -20,7 +20,7 @@ export interface TranscriptionProvider {
   readonly name: string;
   transcribe(audioBlob: Blob, opts?: { language?: string }): Promise<TranscriptionResult>;
   /** Live partial transcription if supported */
-  startLive?(onPartial: (text: string) => void): void;
+  startLive?(onPartial: (text: string) => void, onFinal?: (segment: { text: string; at: number }) => void): void;
   stopLive?(): void;
 }
 
