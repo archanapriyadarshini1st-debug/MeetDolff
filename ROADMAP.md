@@ -13,7 +13,8 @@
 
 ## Milestone 4 — Transcription ✅ COMPLETE (core)
 - Provider abstraction, Web Speech live, Cloud Whisper blobs, timestamps, honest diarization (`false`), transcript view.
-- 🔜 Planned: inline transcript editing UI, Faster-Whisper/Whisper.cpp local adapter, diarization provider, multilingual tuning.
+- ✅ Inline transcript editing (edit / revert / delete segment, assign or rename speaker names), original text preserved, summary flagged stale + *Re-summarize* — verified in real Chromium.
+- 🔜 Planned: Faster-Whisper/Whisper.cpp local adapter, diarization provider (user-assigned speaker names are not diarization), multilingual tuning.
 
 ## Milestone 5 — Memory engine ✅ COMPLETE
 - Structured meetings, IndexedDB, portable `.md`/`.json` + `index.json`, FTS search, date/topic filters, history, export + JSON import, permission recovery, download fallback.
@@ -24,11 +25,13 @@
 
 ## Milestone 7 — Advanced integrations ◐ PARTIAL
 - ✅ BYOK (OpenAI-compatible/Anthropic/Gemini selectable), opt-in Tavily/Brave web search (labeled external + URLs), calendar + dashboard, project converter + approval, artifacts (report/flashcards/quiz/mindmap/infographic).
-- 🔜 Planned: local MCP companion (localhost server + token auth), real-time question suggestions, audio summaries (TTS), slides/video overview, native companion for desktop apps.
+- ✅ Real-time question suggestions: on-device heuristics (ownerless actions, vague deadlines, unexplained decisions, risks, assumptions, uncertainty) + follow-ups carried over from earlier meetings + opt-in LLM mode whose output is dropped unless its evidence is a verbatim quote. Live input is Web Speech (mic) partials or pasted text; tab-audio live STT is not available yet.
+- ✅ Local MCP companion (`companion/`): read-only, stdio, 7 tools over the exported memory folder — see `companion/README.md`.
+- 🔜 Planned: HTTP transport with token auth + scopes for the companion, approval-gated write tools, audio summaries (TTS), slides/video overview, native companion for desktop apps.
 
 ## Next up (priority order)
-1. Inline transcript editing + re-summarize.
-2. Local MCP companion (Node) reading exported memory.
+1. ~~Inline transcript editing + re-summarize.~~ done
+2. ~~Local MCP companion (Node) reading exported memory.~~ done (stdio, read-only)
 3. Diarization adapter (Pyannote / cloud).
 4. Per-operation model selection + streaming chat.
 5. Native companion spike (system audio).
