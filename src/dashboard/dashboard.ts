@@ -3,12 +3,16 @@
  */
 
 import '../styles/design-system.css';
-import { getAudio, listMeetings, listCalendarEvents, putCalendarEvent, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
+import { getAudio, listMeetings, putMeeting, listCalendarEvents, putCalendarEvent, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
 import { searchMeetings } from '../lib/search.js';
 import { createEvent, formatTime } from '../lib/calendar/calendar.js';
 import { downloadMeeting, exportMeetingToFolder, getStoredFolder, pickMemoryFolder, isFileSystemAccessSupported } from '../lib/memory-files.js';
 import { formatDateTime } from '../lib/utils/id.js';
-import type { Meeting } from '../lib/types.js';
+import type { Meeting, ProviderSettings } from '../lib/types.js';
+import { DEFAULT_PROVIDER_SETTINGS } from '../lib/types.js';
+import { summarizeMeeting } from '../lib/ai/summarize.js';
+import { countEdited } from '../lib/transcript-edit.js';
+import { renderTranscriptEditor } from './transcript-editor.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const searchInput = $('searchInput') as HTMLInputElement;
@@ -19,6 +23,11 @@ const calendarList = $('calendarList');
 const projectList = $('projectList');
 
 let allMeetings: Meeting[] = [];
+
+async function loadSettings(): Promise<ProviderSettings> {
+  const res = (await chrome.storage.local.get('providerSettings')) as { providerSettings?: Partial<ProviderSettings> };
+  return { ...DEFAULT_PROVIDER_SETTINGS, ...(res.providerSettings ?? {}) };
+}
 
 function showError(msg: string | null): void {
   errorBox.replaceChildren();
@@ -78,8 +87,10 @@ async function showDetail(id: string): Promise<void> {
     <div class="toolbar">
       <button class="btn btn-sm" data-act="export">Export to folder</button>
       <button class="btn btn-sm" data-act="download">Download .md/.json</button>
+      <button class="btn btn-sm" data-act="resummarize">Re-summarize</button>
       <button class="btn btn-sm" data-act="delete">Delete</button>
     </div>
+    <div class="stale-banner" role="status" hidden></div>
     <div class="audio-wrap"></div>
     <h4>Summary</h4><p class="summary"></p>
     <h4>Decisions</h4><ul class="decisions"></ul>
@@ -115,24 +126,44 @@ async function showDetail(id: string): Promise<void> {
     label.textContent = 'Saved recording';
     wrap.querySelector('.audio-wrap')!.append(label, audio);
   }
-  const tr = wrap.querySelector('.transcript')!;
-  for (const seg of m.transcript) {
-    const div = document.createElement('div');
-    div.className = 'seg';
-    const t = document.createElement('span');
-    t.className = 't';
-    t.textContent = `[${String(Math.floor(seg.start / 60)).padStart(2, '0')}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}]`;
-    const body = document.createElement('span');
-    if (seg.speaker) {
-      const spk = document.createElement('span');
-      spk.className = 'spk';
-      spk.textContent = `${seg.speaker}: `;
-      body.appendChild(spk);
+  const stale = wrap.querySelector<HTMLElement>('.stale-banner')!;
+  const updateStale = (meeting: Meeting): void => {
+    const edits = countEdited(meeting);
+    stale.hidden = !meeting.summaryStale;
+    stale.textContent = meeting.summaryStale
+      ? `Transcript changed since the summary was written (${edits} edited segment${edits === 1 ? '' : 's'}). Re-summarize to refresh the summary, decisions and action items.`
+      : '';
+  };
+  updateStale(m);
+  renderTranscriptEditor(wrap.querySelector<HTMLElement>('.transcript')!, m, {
+    onError: (msg) => showError(msg),
+    onChange: async (updated) => {
+      showError(null);
+      await putMeeting(updated);
+      allMeetings = allMeetings.map((x) => (x.id === updated.id ? updated : x));
+      updateStale(updated);
+      renderMeetings(searchInput.value);
+      showSuccess('Transcript change saved. Original text is kept for edited segments.');
+    },
+  });
+  wrap.querySelector('[data-act="resummarize"]')!.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget as HTMLButtonElement;
+    showError(null);
+    btn.disabled = true;
+    btn.textContent = 'Summarizing…';
+    try {
+      const current = allMeetings.find((x) => x.id === m.id) ?? m;
+      const updated = await summarizeMeeting(current, await loadSettings());
+      await putMeeting(updated);
+      await refreshMeetings();
+      await showDetail(m.id);
+      showSuccess('Summary, decisions and action items refreshed from the edited transcript.');
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Re-summarize failed.');
+      btn.disabled = false;
+      btn.textContent = 'Re-summarize';
     }
-    body.appendChild(document.createTextNode(seg.text));
-    div.append(t, body);
-    tr.appendChild(div);
-  }
+  });
   wrap.querySelector('[data-act="download"]')!.addEventListener('click', () => downloadMeeting(m));
   wrap.querySelector('[data-act="export"]')!.addEventListener('click', async () => {
     showError(null);
