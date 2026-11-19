@@ -9,7 +9,7 @@
 ## Where it lives
 - **IndexedDB (`meetdolff`)** on your device: meetings, audio blobs, calendar, projects, folder handle.
 - **`chrome.storage.local`**: provider settings + API keys. **Never** `chrome.storage.sync`.
-- **Your chosen folder** (optional): portable `.md`/`.json` exports. You control the location.
+- **Your chosen folder** (optional): portable `.md`/`.json` exports and imports you initiate. You control the location.
 - **Nowhere else** — no analytics, no tracking, no remote code, no third-party SDKs.
 
 ## When data leaves your device
