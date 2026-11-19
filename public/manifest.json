@@ -12,8 +12,8 @@
     "https://generativelanguage.googleapis.com/*",
     "https://api.tavily.com/*",
     "https://api.search.brave.com/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "https://*/*",
+    "http://*/*"
   ],
   "host_permissions": [],
   "background": {
