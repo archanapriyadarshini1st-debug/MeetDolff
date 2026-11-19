@@ -124,3 +124,13 @@ Tool schemas are defined in `src/lib/mcp/server.ts`. Default read-only. Any writ
 ## 10. Testing
 
 Vitest (unit: search, memory markdown, project parsing, artifacts) + Playwright (real Chrome, unpacked extension: load, popup/sidepanel render, dashboard search, settings save, no-secrets check). Synthetic audio fixtures; honest limitations in `TESTING.md`.
+
+## Addendum — local MCP companion (implemented)
+
+`companion/` is the reference implementation of the "local companion" option above: a dependency-free Node process speaking MCP (protocol 2025-06-18, falling back to 2025-03-26 / 2024-11-05) over stdio against the exported `MeetDolff Memory/meetings/*.json`. It reuses `src/lib/search.ts` and `src/lib/artifacts` so ranking and reports match the extension. Read-only; no network listener. Details and threat model: `companion/README.md`. The extension's IndexedDB remains the source of truth; the companion only sees what the user exported.
+
+## Addendum — transcript edits and suggestions
+
+- `src/lib/transcript-edit.ts` — pure, immutable edit helpers. Optional fields `edited`, `originalText` (segment) and `summaryStale` (meeting) are backward compatible, so `MEMORY_FORMAT_VERSION` stays 1.
+- `src/lib/ai/suggestions.ts` — heuristic + carry-over + opt-in LLM engines. LLM output is accepted only if each suggestion's `evidence` is a verbatim substring of the conversation excerpt.
+
