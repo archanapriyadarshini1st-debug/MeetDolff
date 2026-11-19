@@ -59,6 +59,12 @@ async function ensureOffscreen(): Promise<void> {
   });
 }
 
+async function liveTranscriptionRequested(audioSource: 'tab' | 'mic' | 'tab+mic'): Promise<boolean> {
+  if (audioSource === 'tab') return false;
+  const stored = (await chrome.storage.local.get('providerSettings')) as any;
+  return (stored?.providerSettings?.transcriptionProvider ?? 'web-speech') === 'web-speech';
+}
+
 async function startRecording(audioSource: 'tab' | 'mic' | 'tab+mic'): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (session.state === 'recording' || session.state === 'paused') {
@@ -68,8 +74,9 @@ async function startRecording(audioSource: 'tab' | 'mic' | 'tab+mic'): Promise<{
     await ensureOffscreen();
     const now = Date.now();
     const sessionId = newId('sess');
+    const liveTranscription = await liveTranscriptionRequested(audioSource);
     if (audioSource === 'mic') {
-      const res = (await chrome.runtime.sendMessage({ target: 'offscreen', type: 'START_MIC', sessionId })) as any;
+      const res = (await chrome.runtime.sendMessage({ target: 'offscreen', type: 'START_MIC', sessionId, liveTranscription })) as any;
       if (!res?.ok) throw new Error(res?.error ?? 'Mic capture failed.');
       await setSession({
         ...idleSession(),
@@ -91,6 +98,7 @@ async function startRecording(audioSource: 'tab' | 'mic' | 'tab+mic'): Promise<{
         type: 'START_TAB',
         streamId,
         sessionId,
+        liveTranscription,
         includeMic: audioSource === 'tab+mic',
       })) as any;
       if (!res?.ok) throw new Error(res?.error ?? 'Tab capture failed.');
@@ -160,7 +168,7 @@ async function autoProcessMeeting(meeting: Meeting, audio: Blob): Promise<Meetin
   return updated;
 }
 
-async function handleRecordingStopped(recordingSessionId: string, mime: string, buffer: ArrayBuffer): Promise<void> {
+async function handleRecordingStopped(recordingSessionId: string, mime: string, buffer: ArrayBuffer, liveResult?: { segments?: Meeting['transcript']; text?: string }): Promise<void> {
   const session = await getSession();
   const sessionId = recordingSessionId || session.id;
   const now = new Date();
@@ -175,8 +183,8 @@ async function handleRecordingStopped(recordingSessionId: string, mime: string, 
     endedAt: now.toISOString(),
     durationSec,
     participants: [],
-    transcript: [],
-    transcriptText: '',
+    transcript: liveResult?.segments ?? [],
+    transcriptText: liveResult?.text ?? '',
     summary: null,
     topics: [],
     decisions: [],
@@ -243,6 +251,11 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
         sendResponse({ ok: true });
       } else if (msg?.type === 'STOP_RECORDING') {
         sendResponse(await stopRecording());
+      } else if (msg?.type === 'TRANSCRIPTION_PARTIAL') {
+        // Forward live mic preview to open UI surfaces without storing
+        // unfinalized text as memory.
+        chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_PARTIAL', text: String(msg.text ?? '') }).catch(() => undefined);
+        sendResponse({ ok: true });
       } else if (msg?.type === 'RECORDING_CHUNK') {
         const recordingSessionId = String(msg.sessionId ?? '');
         const index = Number(msg.index ?? 0);
@@ -261,7 +274,12 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
         }
         sendResponse({ ok: true });
       } else if (msg?.type === 'RECORDING_STOPPED') {
-        await handleRecordingStopped(String(msg.sessionId ?? ''), String(msg.mime ?? 'audio/webm'), msg.buffer as ArrayBuffer);
+        await handleRecordingStopped(
+          String(msg.sessionId ?? ''),
+          String(msg.mime ?? 'audio/webm'),
+          msg.buffer as ArrayBuffer,
+          msg.liveResult as { segments?: Meeting['transcript']; text?: string } | undefined,
+        );
         sendResponse({ ok: true });
       } else if (msg?.type === 'CHUNK_SAVED') {
         // Backward-compatible message from older offscreen pages.
