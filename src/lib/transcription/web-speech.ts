@@ -32,7 +32,7 @@ export class WebSpeechProvider implements TranscriptionProvider {
     );
   }
 
-  startLive(onPartial: (text: string) => void): void {
+  startLive(onPartial: (text: string) => void, onFinal?: (text: string) => void): void {
     const Ctor = getCtor();
     if (!Ctor) throw new Error('SpeechRecognition is not supported in this browser.');
     this.stopLive();
@@ -51,6 +51,7 @@ export class WebSpeechProvider implements TranscriptionProvider {
           if (text) {
             const now = (Date.now() - this.startTime) / 1000;
             this.segments.push({ text, at: now });
+            onFinal?.(text);
           }
         } else {
           interim += r[0]?.transcript ?? '';

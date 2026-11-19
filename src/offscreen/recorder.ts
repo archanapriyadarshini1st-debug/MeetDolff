@@ -46,9 +46,14 @@ recorder.setEvents({
 function startLiveSpeech(): void {
   try {
     liveSpeech = new WebSpeechProvider();
-    liveSpeech.startLive((text) => {
-      chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_PARTIAL', sessionId, text }).catch(() => undefined);
-    });
+    liveSpeech.startLive(
+      (text) => {
+        chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_PARTIAL', sessionId, text }).catch(() => undefined);
+      },
+      (text) => {
+        chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_FINAL', sessionId, text }).catch(() => undefined);
+      },
+    );
   } catch {
     // Recording must not fail just because SpeechRecognition is unavailable.
     liveSpeech = null;

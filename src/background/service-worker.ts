@@ -7,11 +7,12 @@
 
 import { deleteAudioChunks, getDb, putAudio, putAudioChunk, putMeeting } from '../lib/db.js';
 import { newId } from '../lib/utils/id.js';
+import { loadProviderSettings } from '../lib/settings-store.js';
 import { createProvider } from '../lib/ai/provider.js';
 import { SUMMARY_SYSTEM, summaryPrompt } from '../lib/ai/prompts.js';
 import { parseMeetingSummary, applyMeetingSummary } from '../lib/ai/meeting-intelligence.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
-import { DEFAULT_PROVIDER_SETTINGS, MEMORY_FORMAT_VERSION, type Meeting, type ProviderSettings, type RecordingSession } from '../lib/types.js';
+import { MEMORY_FORMAT_VERSION, type Meeting, type ProviderSettings, type RecordingSession } from '../lib/types.js';
 
 const SESSION_KEY = 'recordingSession';
 
@@ -61,8 +62,7 @@ async function ensureOffscreen(): Promise<void> {
 
 async function liveTranscriptionRequested(audioSource: 'tab' | 'mic' | 'tab+mic'): Promise<boolean> {
   if (audioSource === 'tab') return false;
-  const stored = (await chrome.storage.local.get('providerSettings')) as any;
-  return (stored?.providerSettings?.transcriptionProvider ?? 'web-speech') === 'web-speech';
+  return (await loadProviderSettings()).transcriptionProvider === 'web-speech';
 }
 
 async function startRecording(audioSource: 'tab' | 'mic' | 'tab+mic'): Promise<{ ok: boolean; error?: string }> {
@@ -139,8 +139,7 @@ async function stopRecording(): Promise<{ ok: boolean; error?: string; meetingId
 }
 
 async function autoProcessMeeting(meeting: Meeting, audio: Blob): Promise<Meeting> {
-  const stored = (await chrome.storage.local.get('providerSettings')) as any;
-  const settings: ProviderSettings = { ...DEFAULT_PROVIDER_SETTINGS, ...(stored?.providerSettings ?? {}) };
+  const settings: ProviderSettings = await loadProviderSettings();
   let updated = meeting;
 
   // Recorded blobs need a blob-capable adapter. Web Speech is deliberately
@@ -255,6 +254,11 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
         // Forward live mic preview to open UI surfaces without storing
         // unfinalized text as memory.
         chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_PARTIAL', text: String(msg.text ?? '') }).catch(() => undefined);
+        sendResponse({ ok: true });
+      } else if (msg?.type === 'TRANSCRIPTION_FINAL') {
+        // Relay finalized live sentences to open UI (side panel suggestions). Not persisted here;
+        // the saved transcript still comes from the recorder's final result.
+        chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_FINAL', text: String(msg.text ?? '') }).catch(() => undefined);
         sendResponse({ ok: true });
       } else if (msg?.type === 'RECORDING_CHUNK') {
         const recordingSessionId = String(msg.sessionId ?? '');

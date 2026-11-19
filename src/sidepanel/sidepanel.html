@@ -24,6 +24,16 @@
 
       <div id="artifactBox"></div>
 
+      <section aria-labelledby="sugTitle" class="sug">
+        <div class="sug-head">
+          <h2 id="sugTitle" style="font-size:15px; margin:18px 0 6px">Questions worth asking</h2>
+          <label class="small"><input type="checkbox" id="sugEnabled" /> Live suggestions</label>
+        </div>
+        <p id="sugStatus" class="muted small" aria-live="polite">Off. When on, the last few minutes of live transcript are sent to your AI provider to suggest questions.</p>
+        <div id="sugList" class="sug-list"></div>
+        <button id="btnSuggestNow" class="btn btn-sm">Suggest now</button>
+      </section>
+
       <h2 style="font-size:15px; margin:18px 0 6px">Chat with memory</h2>
       <div id="chatLog" class="chat-log" aria-live="polite"></div>
       <div class="chat-input">

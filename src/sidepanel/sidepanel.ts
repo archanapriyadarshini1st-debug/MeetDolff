@@ -4,17 +4,18 @@
 
 import '../styles/design-system.css';
 import { getAudio, listMeetings } from '../lib/db.js';
-import { searchMeetings } from '../lib/search.js';
+import { formatClock, GROUNDED_SYSTEM, groundedPrompt, notInMemoryMessage, retrieveEvidence, verifyCitations } from '../lib/retrieval/evidence.js';
 import { searchWeb, type WebSearchResult } from '../lib/search/web.js';
 import { createProvider } from '../lib/ai/provider.js';
-import { qaPrompt, SUMMARY_SYSTEM, summaryPrompt, projectPrompt } from '../lib/ai/prompts.js';
+import { SUMMARY_SYSTEM, summaryPrompt, projectPrompt } from '../lib/ai/prompts.js';
 import { generateReport, generateFlashcards, generateQuiz, generateMindmap } from '../lib/artifacts/artifacts.js';
 import { parseProjectPlan } from '../lib/projects/converter.js';
 import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-intelligence.js';
 import { putProject, putMeeting } from '../lib/db.js';
 import { formatDateTime } from '../lib/utils/id.js';
 import type { Meeting, ProviderSettings } from '../lib/types.js';
-import { DEFAULT_PROVIDER_SETTINGS } from '../lib/types.js';
+import { loadProviderSettings } from '../lib/settings-store.js';
+import { parseSuggestions, SUGGEST_SYSTEM, suggestionPrompt, SuggestionPacer } from '../lib/ai/suggestions.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -43,8 +44,7 @@ function showSuccess(msg: string): void {
 }
 
 async function loadSettings(): Promise<ProviderSettings> {
-  const res = (await chrome.storage.local.get('providerSettings')) as any;
-  return { ...DEFAULT_PROVIDER_SETTINGS, ...(res?.providerSettings ?? {}) };
+  return loadProviderSettings();
 }
 
 function addMsg(role: 'user' | 'assistant', content: string, sources?: string): void {
@@ -78,26 +78,6 @@ async function refreshRecent(): Promise<void> {
   }
 }
 
-function timestamp(seconds: number): string {
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-}
-
-function buildContext(meetings: Meeting[], scope: string, query: string): { context: string; sources: string } {
-  let pool = meetings;
-  if (scope === 'latest' && meetings.length) pool = [meetings[0]!];
-  // Prefer search-ranked results when query is specific.
-  const ranked = query ? searchMeetings(pool, query) : [];
-  const chosen = ranked.length ? ranked.slice(0, 5).map((r) => r.meeting) : pool.slice(0, 5);
-  const parts = chosen.map((m) => {
-    const transcript = m.transcript.length
-      ? m.transcript.map((seg) => `[${timestamp(seg.start)}] ${seg.speaker ? `${seg.speaker}: ` : ''}${seg.text}`).join('\n')
-      : m.transcriptText;
-    return `[${m.title} | ${m.startedAt}]\nSummary: ${m.summary ?? '—'}\nDecisions: ${m.decisions.map((d) => `${d.text}${d.evidence.length ? ` (evidence: ${d.evidence.join(', ')})` : ''}`).join('; ') || '—'}\nActions: ${m.actionItems.map((a) => `${a.text}${a.owner ? ` (owner: ${a.owner})` : ''}${a.deadline ? ` (deadline: ${a.deadline})` : ''}`).join('; ') || '—'}\nTranscript with timestamps:\n${transcript.slice(0, 9000)}`;
-  });
-  const sources = chosen.map((m) => m.title).join(', ');
-  return { context: parts.join('\n\n---\n\n'), sources };
-}
-
 async function ask(): Promise<void> {
   const q = chatInput.value.trim();
   if (!q) return;
@@ -106,23 +86,38 @@ async function ask(): Promise<void> {
   chatInput.value = '';
   try {
     const settings = await loadSettings();
-    const meetings = await listMeetings(50);
+    const meetings = await listMeetings(500);
     if (meetings.length === 0) {
       addMsg('assistant', 'No meetings in memory yet. Record a meeting first, then ask.');
       return;
     }
     const scope = (document.querySelector('input[name="scope"]:checked') as HTMLInputElement)?.value ?? 'all';
-    const { context, sources } = buildContext(meetings, scope, q);
+    const pool = scope === 'latest' ? meetings.slice(0, 1) : meetings;
+    // Deterministic retrieval first: date intent + topic ranking, numbered passages.
+    const retrieval = retrieveEvidence(pool, q);
     let external: WebSearchResult[] = [];
     if (settings.searchProvider !== 'none') external = await searchWeb(settings, q);
+    if (retrieval.passages.length === 0 && external.length === 0) {
+      // Nothing retrieved: do not ask a model to guess.
+      addMsg('assistant', notInMemoryMessage(retrieval));
+      return;
+    }
     const externalContext = external.map((r) => `${r.title} | ${r.url}\n${r.snippet}`).join('\n\n');
     const provider = createProvider(settings, settings.aiProvider);
     const res = await provider.chat([
-      { role: 'system', content: SUMMARY_SYSTEM },
-      { role: 'user', content: qaPrompt(q, context, externalContext) },
+      { role: 'system', content: GROUNDED_SYSTEM },
+      { role: 'user', content: groundedPrompt(q, retrieval, externalContext) },
     ]);
-    const externalSources = external.length ? ` · External: ${external.map((r) => r.url).join(', ')}` : '';
-    addMsg('assistant', res.text, `Memory: ${sources}${externalSources}`);
+    const verified = verifyCitations(res.text, retrieval.passages);
+    const cited = verified.citations.map((c) => `${c.title}${c.timestampSec !== null ? ` @ ${formatClock(c.timestampSec)}` : ''}`);
+    const parts = [
+      cited.length ? `Memory sources: ${cited.join(' · ')}` : 'No meeting sources cited',
+      retrieval.dateFilter ? `Date filter: ${retrieval.dateFilter.label}` : '',
+      external.length ? `External (not from your meetings): ${external.map((r) => r.url).join(', ')}` : '',
+      verified.invalid.length ? `Removed ${verified.invalid.length} citation(s) that did not match retrieved evidence` : '',
+      !verified.grounded && external.length === 0 ? '⚠ This answer cites no meeting evidence — treat it as unverified.' : '',
+    ].filter(Boolean);
+    addMsg('assistant', verified.text, parts.join(' | '));
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Failed to answer.');
   }
@@ -259,7 +254,89 @@ $('btnMindmap').addEventListener('click', async () => {
   showArtifact(`Mind map — ${m.title}`, generateMindmap(m));
 });
 
+// ---- Live question suggestions (opt-in, paced, never auto-fills the chat) ----
+const sugEnabled = $('sugEnabled') as HTMLInputElement;
+const sugStatus = $('sugStatus');
+const sugList = $('sugList');
+const pacer = new SuggestionPacer();
+const shownQuestions: string[] = [];
+
+async function runSuggestions(excerpt: string): Promise<void> {
+  const settings = await loadSettings();
+  if (!settings.apiKey) {
+    sugStatus.textContent = 'Add an API key in Settings to get suggestions.';
+    return;
+  }
+  sugStatus.textContent = 'Thinking about what to ask…';
+  const res = await createProvider(settings, settings.aiProvider).chat(
+    [
+      { role: 'system', content: SUGGEST_SYSTEM },
+      { role: 'user', content: suggestionPrompt(excerpt, shownQuestions) },
+    ],
+    { temperature: 0.5 },
+  );
+  const fresh = parseSuggestions(res.text, shownQuestions);
+  sugStatus.textContent = fresh.length ? 'Click a question to put it in the box below.' : 'Nothing worth asking yet.';
+  for (const q of fresh) {
+    shownQuestions.push(q);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-sm sug-item';
+    b.textContent = q;
+    b.addEventListener('click', () => {
+      chatInput.value = q;
+      chatInput.focus();
+    });
+    sugList.prepend(b);
+  }
+  while (sugList.children.length > 8) sugList.lastElementChild?.remove();
+}
+
+async function maybeSuggest(): Promise<void> {
+  if (!sugEnabled.checked || !pacer.shouldRun(Date.now())) return;
+  const excerpt = pacer.begin(Date.now());
+  try {
+    await runSuggestions(excerpt);
+  } catch (e) {
+    sugStatus.textContent = e instanceof Error ? `Suggestions unavailable: ${e.message}` : 'Suggestions unavailable.';
+  } finally {
+    pacer.end();
+  }
+}
+
+sugEnabled.addEventListener('change', async () => {
+  await chrome.storage.local.set({ suggestionsEnabled: sugEnabled.checked });
+  sugStatus.textContent = sugEnabled.checked ? 'Listening… suggestions appear as the conversation develops.' : 'Off. Nothing is sent to your AI provider.';
+});
+
+$('btnSuggestNow').addEventListener('click', async () => {
+  showError(null);
+  let excerpt = pacer.peek();
+  if (!excerpt) {
+    const m = await latestMeeting();
+    excerpt = m?.transcriptText.slice(-2400) ?? '';
+  }
+  if (!excerpt) {
+    sugStatus.textContent = 'No transcript to work from yet.';
+    return;
+  }
+  try {
+    await runSuggestions(excerpt);
+  } catch (e) {
+    showError(e instanceof Error ? e.message : 'Suggestions failed.');
+  }
+});
+
+void chrome.storage.local.get('suggestionsEnabled').then((r) => {
+  sugEnabled.checked = r['suggestionsEnabled'] === true;
+  if (sugEnabled.checked) sugStatus.textContent = 'Listening… suggestions appear as the conversation develops.';
+});
+
 chrome.runtime.onMessage.addListener((msg: any) => {
+  if (msg?.type === 'TRANSCRIPTION_FINAL') {
+    pacer.add(String(msg.text ?? ''));
+    void maybeSuggest();
+  }
   if (msg?.type === 'MEETING_SAVED' || msg?.type === 'MEETING_PROCESSED') void refreshRecent();
   if (msg?.type === 'PROCESSING_ERROR') showError(String(msg.error ?? 'Post-recording processing failed.'));
 });

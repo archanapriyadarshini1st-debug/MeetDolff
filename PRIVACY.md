@@ -8,7 +8,8 @@
 
 ## Where it lives
 - **IndexedDB (`meetdolff`)** on your device: meetings, audio blobs, calendar, projects, folder handle.
-- **`chrome.storage.local`**: provider settings + API keys. **Never** `chrome.storage.sync`.
+- **`chrome.storage.local`**: non-secret provider settings only. **Never** `chrome.storage.sync`.
+- **Encrypted key vault** (IndexedDB `meetdolff-vault`): API keys as AES-GCM ciphertext; the key is a non-extractable `CryptoKey`.
 - **Your chosen folder** (optional): portable `.md`/`.json` exports and imports you initiate. You control the location.
 - **Nowhere else** — no analytics, no tracking, no remote code, no third-party SDKs.
 
@@ -27,7 +28,9 @@ MeetDolff never sends data to MeetDolff servers (there are none).
 - You can pause/stop anytime. Interrupted sessions surface an `error` state — no silent capture.
 
 ## API keys
-- Stored in `chrome.storage.local` only.
+- Stored encrypted in the local vault (not in `chrome.storage`). This protects against plaintext disclosure via storage, sync, profile backups or casual disk inspection; it does not protect against malware running as your OS user.
+- "Delete all data" also wipes the vault and its master key.
+- **Live question suggestions are opt-in.** When enabled, the last few minutes of live transcript are sent to *your* configured AI provider; when disabled nothing is sent.
 - Never logged, never in URLs, never exposed to page/content scripts.
 - Sent only to the provider base URL you configured (HTTPS).
 - Revoke/rotate keys at the provider; delete locally via Settings → Wipe.

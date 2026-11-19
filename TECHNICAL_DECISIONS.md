@@ -31,7 +31,7 @@
 ## AI
 
 - **OpenAI-compatible first + Anthropic + Gemini adapters, selectable in Settings.** Why: BYOK + model independence (core differentiation). Rejected: single-provider lock-in.
-- **Keys in `chrome.storage.local` only.** Why: never sync, never logs, never content scripts. Rejected: sync storage, URL params, env in bundle.
+- **Keys in an encrypted IndexedDB vault, not `chrome.storage`.** AES-GCM-256 with a non-extractable `CryptoKey` (`src/lib/secrets.ts`); AAD binds ciphertext to the secret name. Why: the directive forbids unencrypted keys in Chrome storage. Honest limit: defeats plaintext exposure, not same-user malware. Rejected: sync storage, URL params, env in bundle, passphrase-derived key (would break the service worker's unattended summaries; revisit as an opt-in).
 - **Grounded prompts with citations + “not in memory” honesty.** Why: trust; no invented decisions/deadlines.
 - **Opt-in Tavily/Brave web search.** Why: explicit external research capability without contaminating meeting memory. External URLs remain visible and separately labeled.
 
@@ -47,3 +47,11 @@
 ## Licensing
 
 - Dependencies checked: `idb` (ISC), Vite/TS/Vitest/Playwright (MIT/Apache). No GPL. No remote code. Chrome Web Store privacy-ready.
+
+## 2026-11-19 additions (lead agent)
+
+- **Deterministic date retrieval, not LLM date parsing.** `src/lib/retrieval/dates.ts`. Local time. `last <weekday>` = most recent such weekday strictly before today; bare `<weekday>`/`this <weekday>` includes today; `last week` = previous Mon–Sun; a clock time narrows a single day to ±90 min. Why: reproducible, testable, offline; a wrong date silently returns the wrong meeting otherwise.
+- **Numbered evidence + citation verification.** The model only sees `[E1..En]` passages and must cite those ids; `verifyCitations` rewrites valid ids to `Title @ mm:ss` and strips any id that was not retrieved. Empty retrieval short-circuits — no model call, no guessing.
+- **Coverage guard.** At least half of the distinct query terms must occur in the searched meetings, otherwise one common word ("budget") pulls in an unrelated meeting. Found by the browser test, fixed with a unit test.
+- **Transcript edits are non-destructive.** `originalText` is preserved, `transcriptText` is rebuilt, and an existing summary is flagged `summaryStale` rather than silently left wrong.
+- **Companion = plain Node ESM, zero dependencies.** Loopback-only (`assertLoopback`), Host/Origin validation against DNS rebinding, SHA-256-hashed scoped tokens (0600 file, atomic writes), per-token rate limit, argument allow-listing, and **propose-only writes** (`propose_task` creates a *pending* proposal; approval happens in the local CLI). Transcript text is labelled untrusted in every tool result to blunt prompt injection. Calendar is not exposed because it is not part of the memory-folder export.

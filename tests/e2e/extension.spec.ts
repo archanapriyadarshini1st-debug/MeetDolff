@@ -8,13 +8,18 @@
 import { test, expect, chromium } from '@playwright/test';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { createServer, type Server } from 'node:http';
 
 const DIST = resolve(process.cwd(), 'dist');
 
+// Chromium's old headless shell cannot load extensions. Locally run headed (default) or under xvfb;
+// in display-less environments set MEETDOLFF_HEADLESS=1 to use Chromium's new headless mode.
+const HEADLESS = process.env['MEETDOLFF_HEADLESS'] === '1';
+
 async function extensionContext() {
   return chromium.launchPersistentContext('', {
-    // Chromium disables extension loading in its headless shell; run via xvfb for real Chrome.
-    headless: false,
+    headless: HEADLESS,
+    ...(HEADLESS ? { channel: 'chromium' } : {}),
     args: [
       `--disable-extensions-except=${DIST}`,
       `--load-extension=${DIST}`,
@@ -107,13 +112,161 @@ test.describe('MeetDolff extension', () => {
       await page.locator('#btnSave').click();
       await expect(page.locator('#errorBox')).toContainText('Settings saved locally');
       expect(await page.locator('#apiKey').inputValue()).toBe('');
-      const stored = await page.evaluate(async () => chrome.storage.local.get('providerSettings'));
-      expect(stored.providerSettings.baseUrl).toBe('http://localhost:11434/v1');
-      expect(stored.providerSettings.chatModel).toBe('llama3.2');
-      expect(stored.providerSettings.apiKey).toBe('test-only-key-not-a-real-secret');
+      const stored = await page.evaluate(async () => chrome.storage.local.get(null));
+      expect(stored['providerSettings'].baseUrl).toBe('http://localhost:11434/v1');
+      expect(stored['providerSettings'].chatModel).toBe('llama3.2');
+      // The key must NOT be in chrome.storage in any form...
+      expect(JSON.stringify(stored)).not.toContain('test-only-key-not-a-real-secret');
+      // ...it lives only as AES-GCM ciphertext in the vault database.
+      const vault = await page.evaluate(
+        () =>
+          new Promise<{ hasCipher: boolean; plaintextFound: boolean }>((resolveVault, reject) => {
+            const open = indexedDB.open('meetdolff-vault');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const q = open.result.transaction('secrets').objectStore('secrets').get('provider.apiKey');
+              q.onsuccess = () => {
+                const rec = q.result as { ct: ArrayBuffer } | undefined;
+                const raw = rec ? new TextDecoder('latin1').decode(rec.ct) : '';
+                resolveVault({ hasCipher: !!rec && rec.ct.byteLength > 16, plaintextFound: raw.includes('test-only-key') });
+              };
+            };
+          }),
+      );
+      expect(vault).toEqual({ hasCipher: true, plaintextFound: false });
+      // The settings page still reports that a key is saved after reload.
+      await page.reload();
+      await expect(page.locator('#apiKey')).toHaveAttribute('placeholder', /saved/);
       await page.close();
     } finally {
       await context.close();
+    }
+  });
+
+  test('transcript correction persists, keeps the original and flags the summary stale', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/dashboard.html`);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolveSeed, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const tx = open.result.transaction('meetings', 'readwrite');
+              tx.objectStore('meetings').put({
+                id: 'e2e-1', title: 'E2E seeded meeting', startedAt: '2026-11-17T19:00:00.000Z', endedAt: '2026-11-17T19:10:00.000Z', durationSec: 600,
+                participants: [], transcriptText: 'we use post gress', summary: 'Old summary', topics: [], decisions: [], actionItems: [], openQuestions: [],
+                commitments: [], project: null, audioSource: 'mic', audioMime: null, hasAudio: false, memoryVersion: 1, createdAt: '', updatedAt: '',
+                transcript: [{ id: 'seg-1', start: 3, end: 6, speaker: null, text: 'we use post gress' }],
+              });
+              tx.oncomplete = () => resolveSeed();
+              tx.onerror = () => reject(tx.error);
+            };
+          }),
+      );
+      await page.reload();
+      await page.getByText('E2E seeded meeting').click();
+      await page.getByRole('button', { name: /Edit transcript at 00:03/ }).click();
+      await page.getByLabel('Transcript text').fill('we use Postgres');
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.locator('.seg-body')).toContainText('we use Postgres');
+      await expect(page.locator('.badge-edited')).toBeVisible();
+      await expect(page.getByText(/transcript was edited after this summary/i)).toBeVisible();
+      const saved = await page.evaluate(
+        () =>
+          new Promise<{ text: string; originalText: string; stale: boolean; full: string }>((resolveRead, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const q = open.result.transaction('meetings').objectStore('meetings').get('e2e-1');
+              q.onsuccess = () => resolveRead({ text: q.result.transcript[0].text, originalText: q.result.transcript[0].originalText, stale: q.result.summaryStale, full: q.result.transcriptText });
+            };
+          }),
+      );
+      expect(saved).toEqual({ text: 'we use Postgres', originalText: 'we use post gress', stale: true, full: 'we use Postgres' });
+      await page.close();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('grounded Q&A: date retrieval, verified citations, and no model call without evidence', async () => {
+    const prompts: string[] = [];
+    const fake: Server = createServer((req, res) => {
+      res.setHeader('access-control-allow-origin', '*');
+      res.setHeader('access-control-allow-headers', '*');
+      if (req.method === 'OPTIONS') { res.writeHead(204).end(); return; }
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        prompts.push(body);
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ choices: [{ message: { content: 'The team chose Postgres [E1]. They also shipped it already [E99].' } }] }));
+      });
+    });
+    await new Promise<void>((r) => fake.listen(0, '127.0.0.1', r));
+    const port = (fake.address() as { port: number }).port;
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const settings = await context.newPage();
+      await settings.goto(`chrome-extension://${id}/settings.html`);
+      await settings.locator('#baseUrl').fill(`http://127.0.0.1:${port}/v1`);
+      await settings.locator('#apiKey').fill('test-only-key-not-a-real-secret');
+      await settings.locator('#btnSave').click();
+      await expect(settings.locator('#errorBox')).toContainText('Settings saved locally');
+      await settings.close();
+
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/sidepanel.html`);
+      const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
+      yesterday.setHours(14, 0, 0, 0);
+      const seed = (mid: string, title: string, start: string, text: string) => ({
+        id: mid, title, startedAt: start, endedAt: new Date(new Date(start).getTime() + 1800_000).toISOString(), durationSec: 1800, participants: [],
+        transcriptText: text, summary: null, topics: [], decisions: [], actionItems: [], openQuestions: [], commitments: [], project: null,
+        audioSource: 'mic', audioMime: null, hasAudio: false, memoryVersion: 1, createdAt: start, updatedAt: start,
+        transcript: [{ id: `${mid}-1`, start: 0, end: 5, speaker: null, text }],
+      });
+      const rows = [
+        seed('q1', 'Frontend sync', yesterday.toISOString(), 'We decided to use Postgres for the dashboard.'),
+        seed('q2', 'Old budget review', new Date(2026, 0, 5, 10).toISOString(), 'Unrelated zebra budget secret.'),
+      ];
+      await page.evaluate(
+        (items) =>
+          new Promise<void>((resolveSeed, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const tx = open.result.transaction('meetings', 'readwrite');
+              for (const m of items) tx.objectStore('meetings').put(m);
+              tx.oncomplete = () => resolveSeed();
+              tx.onerror = () => reject(tx.error);
+            };
+          }),
+        rows,
+      );
+      await page.reload();
+      await page.locator('#chatInput').fill('What did we decide about the dashboard yesterday?');
+      await page.locator('#btnAsk').click();
+      const answer = page.locator('.chat-msg.assistant').first();
+      await expect(answer).toContainText('[Frontend sync @ 00:00]');
+      await expect(answer).not.toContainText('E99');
+      await expect(answer.locator('.src')).toContainText('Removed 1 citation');
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toContain('Postgres');
+      expect(prompts[0]).not.toContain('zebra'); // other-date meeting never reaches the model
+
+      await page.locator('#chatInput').fill('kubernetes autoscaling budget');
+      await page.locator('#btnAsk').click();
+      await expect(page.locator('.chat-msg.assistant').nth(1)).toContainText("isn't in your meeting memory");
+      expect(prompts).toHaveLength(1); // no extra model call for an empty retrieval
+      await page.close();
+    } finally {
+      await context.close();
+      fake.close();
     }
   });
 

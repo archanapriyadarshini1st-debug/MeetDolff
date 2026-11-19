@@ -236,3 +236,21 @@ mark { background: #fff; color: #000; padding: 0 2px; border-radius: 2px; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } .cal-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Transcript editing */
+.seg { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; padding: 4px 0; }
+.seg-time { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: var(--muted, #888); text-decoration: underline dotted; }
+.seg-time:hover, .seg-time:focus-visible { color: var(--text); }
+.seg-edit { opacity: 0; }
+.seg:hover .seg-edit, .seg:focus-within .seg-edit { opacity: 1; }
+.seg-editing { grid-template-columns: 1fr; gap: 6px; padding: 8px; border: 1px solid var(--border-strong); border-radius: 6px; }
+.seg-editing input, .seg-editing textarea { background: var(--bg); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 8px 10px; font: inherit; width: 100%; box-sizing: border-box; }
+.seg-actions { display: flex; gap: 6px; }
+.badge-edited { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 5px; color: var(--muted, #888); }
+.stale-box { margin-bottom: 8px; }
+@media (hover: none) { .seg-edit { opacity: 1; } }
+
+/* Question suggestions */
+.sug-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sug-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.sug-item { text-align: left; white-space: normal; line-height: 1.35; }
