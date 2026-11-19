@@ -99,7 +99,12 @@ export function retrieveEvidence(meetings: Meeting[], question: string, now: Dat
     }
   } else {
     const scored = pool.flatMap((m) => draftsFor(m).map((d) => ({ d, s: score(d.text, terms) + (score(m.title, terms) > 0 ? 0.5 : 0) })));
-    chosen = scored.filter((x) => x.s >= 1).sort((a, b) => b.s - a.s).slice(0, maxPassages).map((x) => x.d);
+    // Coverage guard: a lone common word must not drag in an unrelated meeting.
+    // At least half of the distinct query terms have to occur somewhere in the pool.
+    const distinct = [...new Set(terms)];
+    const covered = distinct.filter((t) => scored.some((x) => x.d.text.toLowerCase().includes(t))).length;
+    const enough = covered >= Math.ceil(distinct.length / 2);
+    chosen = enough ? scored.filter((x) => x.s >= 1).sort((a, b) => b.s - a.s).slice(0, maxPassages).map((x) => x.d) : [];
     // Date named a meeting but the topic words matched nothing: give the overview, not silence.
     if (chosen.length === 0 && dateFilter && pool.length) {
       for (const m of pool.slice(0, 3)) chosen.push(...draftsFor(m).filter((x) => x.kind !== 'transcript'));

@@ -55,7 +55,7 @@ See `ROADMAP.md` for completed vs. planned, and `TECHNICAL_DECISIONS.md` for why
 
 ## Configuration
 
-All settings live in `chrome.storage.local` (never sync). Keys are never logged.
+Non-secret settings live in `chrome.storage.local` (never sync). **API keys are encrypted** (AES-GCM, non-extractable key) in a dedicated IndexedDB vault — never in `chrome.storage`, never logged. Older plaintext keys are migrated automatically on first load.
 
 | Setting | Default | Notes |
 |---|---|---|
@@ -93,3 +93,6 @@ Local-first. No analytics, no remote code, minimal permissions (`tabCapture`, `o
 ## License
 
 Private repository. All rights reserved until a license is chosen.
+
+## Local MCP companion
+External AI agents can query your exported memory through a local, read-only, token-authenticated MCP server — see [`companion/README.md`](companion/README.md).

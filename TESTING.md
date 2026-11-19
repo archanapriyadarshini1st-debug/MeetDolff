@@ -59,3 +59,17 @@ On a desktop with a display, `npm run test:e2e` also works after changing the te
 - Fake media proves the pipeline wiring, not microphone acoustics or echo behavior.
 - AI/transcription calls require a real BYOK key; tests never use the user's key.
 - Real Chrome permissions, folder persistence after a browser restart, and service-worker kill recovery remain manual acceptance checks.
+
+## Run log — lead agent, 2026-11-19
+
+Environment: Node 22, Playwright 1.5x + Chromium 1255 in **new headless mode** (`MEETDOLFF_HEADLESS=1`), no display server. The sandbox lacked Chromium's shared libraries, so they were unpacked user-locally and exposed via `LD_LIBRARY_PATH`; no code changes were needed for that.
+
+- `npx tsc --noEmit` — clean. `npx eslint .` — clean.
+- `npx vitest run` — **63 tests passed** (secrets/vault, settings migration, date parsing, evidence retrieval, citation verification, transcript editing, suggestions, companion HTTP/stdio/auth/rate-limit/propose-only). Also re-run under `TZ=UTC`, `Asia/Kolkata`, `America/Los_Angeles` (date logic is timezone-sensitive).
+- `npm run build` — passed.
+- `MEETDOLFF_HEADLESS=1 npx playwright test` — **7 passed** in real Chromium with the unpacked extension: render of all pages, fake-mic record → pause → resume → persist, **key never in `chrome.storage` and stored only as ciphertext**, transcript edit persists with original + stale flag, **grounded Q&A against a local fake OpenAI-compatible server** (date filter keeps other meetings out of the prompt; fabricated `[E99]` stripped; no model call when memory lacks evidence), bundled-secret scan.
+- Companion smoke test with real processes: no token → 401; token → search hit with title/kind/timestamp; `--host 0.0.0.0` refused; stdio `tools/list`; server log contains no token.
+
+Bug found by testing: a one-word overlap ("budget") retrieved an unrelated meeting; fixed with a term-coverage guard (+ regression test).
+
+Still NOT verified (no fake for these): real `tabCapture` on a live meeting tab, service-worker kill/recovery, folder-permission denial flows, real provider/API-key failures against live vendors, speaker diarization (not implemented).

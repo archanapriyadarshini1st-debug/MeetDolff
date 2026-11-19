@@ -73,6 +73,11 @@ describe('retrieveEvidence', () => {
     expect(r.passages).toEqual([]);
     expect(notInMemoryMessage(r)).toMatch(/isn't in your meeting memory/);
   });
+  it('does not retrieve on a single weak term when most of the question is absent from memory', () => {
+    const r = retrieveEvidence(all, 'kubernetes autoscaling caching', NOW); // only "caching" exists (in m2)
+    expect(r.passages).toEqual([]);
+    expect(retrieveEvidence(all, 'GraphQL caching', NOW).passages.length).toBeGreaterThan(0); // 2/2 covered
+  });
   it('says no meeting exists for an empty date window', () => {
     const r = retrieveEvidence(all, 'what happened last friday', NOW);
     expect(r.passages).toEqual([]);

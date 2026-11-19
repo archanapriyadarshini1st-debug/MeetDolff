@@ -15,7 +15,7 @@
 │     Dashboard (history/calendar/projects) · Settings (BYOK)      │
 └──────┬───────────────────────────────────────────────────────────┘
        │ IndexedDB (meetdolff): meetings, audio, calendar, projects, kv
-       │ chrome.storage.local: providerSettings (API keys)
+       │ chrome.storage.local: providerSettings (non-secret) · IndexedDB vault: encrypted API keys
        │ File System Access API: portable memory exports
 ┌──────▼───────────────────────────────────────────────────────────┐
 │ AI layer: OpenAI-compatible / Anthropic / Gemini adapters        │
@@ -90,7 +90,7 @@ Adapters (`src/lib/ai/provider.ts`):
 - `AnthropicProvider` — `POST /messages` (`x-api-key`, `anthropic-version`).
 - `GeminiProvider` — `generateContent?key=`.
 
-BYOK: keys in `chrome.storage.local` only. Never in sync storage, logs, or content scripts. Settings selects the OpenAI-compatible, Anthropic, or Gemini adapter. Per-operation models (transcription vs. summary vs. QA) are a roadmap refinement; v0.1 uses one chat model + one transcription model.
+BYOK: keys are AES-GCM encrypted in `meetdolff-vault` (`src/lib/secrets.ts`, `settings-store.ts`). Never in `chrome.storage`, sync storage, logs, or content scripts. Settings selects the OpenAI-compatible, Anthropic, or Gemini adapter. Per-operation models (transcription vs. summary vs. QA) are a roadmap refinement; v0.1 uses one chat model + one transcription model.
 
 Web search (`src/lib/search/web.ts`): optional Tavily/Brave adapters, requested as optional host permissions, labeled **external** vs. **memory** in UI. Off by default; URLs are passed to the grounded prompt and shown in the source line.
 
@@ -116,7 +116,7 @@ Tool schemas are defined in `src/lib/mcp/server.ts`. Default read-only. Any writ
 
 - No remote executable code (MV3 requirement + policy).
 - Minimal permissions; provider/search network origins are optional host permissions requested only when configured.
-- Keys: `storage.local` only, never logged, never sent except to the configured provider/search endpoint.
+- Keys: encrypted vault only, never logged, never sent except to the configured provider/search endpoint.
 - Recording: explicit gesture, visible indicator, no background recording.
 - Deletion: per-meeting (audio + metadata) and full wipe.
 - Chrome Web Store privacy disclosures prepared from day one (`PRIVACY.md`).
