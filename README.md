@@ -12,6 +12,9 @@ MeetDolff listens to meetings **only with explicit permission**, transcribes the
 
 - **Explicit recording** — tab audio (Chrome `tabCapture`), microphone, or both. Visible REC badge, timer, pause/resume/stop, recovery states.
 - **Transcription** — Web Speech API (local, live mic, no key) + Cloud Whisper adapter (OpenAI-compatible `/audio/transcriptions`) for recorded audio. Timestamps included. Diarization is **not** faked — basic STT returns `speaker: null`. The recorded-audio flow is **Transcribe latest** in the side panel; Cloud + BYOK can also auto-process after stop.
+- **Transcript editing** — fix mistakes inline (edit / revert / delete), name speakers yourself, original text is kept, summary is flagged stale until you **Re-summarize**.
+- **Question suggestions** — side panel suggests what to ask (owner? deadline? why? mitigation?) from live mic text or pasted text, with the exact quote that triggered each; also surfaces open questions from earlier meetings. On-device by default; AI mode is opt-in.
+- **MCP companion** — `companion/`: local read-only stdio server so AI agents can search your exported memory. See `companion/README.md`.
 - **Memory engine** — structured meetings in IndexedDB + portable exports (`MeetDolff Memory/index.json`, `meetings/*.md|*.json`) via File System Access API, with download fallback.
 - **Search** — offline full-text search across transcripts, summaries, decisions, actions. Date/topic filters.
 - **AI intelligence (BYOK)** — OpenAI-compatible chat (OpenAI/Groq/Together/local Ollama…), Anthropic, or Gemini adapter selectable in Settings. Summaries, decisions, action items, cross-meeting Q&A — all grounded, with “not in memory” honesty.
@@ -71,8 +74,9 @@ All settings live in `chrome.storage.local` (never sync). Keys are never logged.
 npm run typecheck   # strict TS
 npm run lint        # ESLint flat config
 npm test            # Vitest unit tests
-xvfb-run -a npm run test:e2e  # Playwright + headed Chrome (Linux CI; desktop can run npm run test:e2e)
 npm run build       # production build → dist/
+npm run build:companion && npm run test:companion   # MCP companion + stdio smoke test
+npx playwright test # e2e in new-headless Chromium (PW_HEADED=1 for headed)
 ```
 
 See `TESTING.md` for scenarios + honest limitations.
