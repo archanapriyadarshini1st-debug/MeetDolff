@@ -21,7 +21,21 @@ const projectList = $('projectList');
 let allMeetings: Meeting[] = [];
 
 function showError(msg: string | null): void {
-  errorBox.innerHTML = msg ? `<div class="error" role="alert">${msg}</div>` : '';
+  errorBox.replaceChildren();
+  if (!msg) return;
+  const box = document.createElement('div');
+  box.className = 'error';
+  box.setAttribute('role', 'alert');
+  box.textContent = msg;
+  errorBox.appendChild(box);
+}
+
+function showSuccess(msg: string): void {
+  errorBox.replaceChildren();
+  const box = document.createElement('div');
+  box.className = 'ok-box';
+  box.textContent = msg;
+  errorBox.appendChild(box);
 }
 
 async function refreshMeetings(): Promise<void> {
@@ -129,8 +143,7 @@ async function showDetail(id: string): Promise<void> {
         folder = await pickMemoryFolder();
       }
       await exportMeetingToFolder(folder, m);
-      showError(null);
-      errorBox.innerHTML = '<div class="ok-box">Exported to memory folder.</div>';
+      showSuccess('Exported to memory folder.');
     } catch (e) {
       showError(e instanceof Error ? e.message : 'Export failed.');
     }
@@ -217,7 +230,7 @@ $('btnExportAll').addEventListener('click', async () => {
     if (!isFileSystemAccessSupported()) throw new Error('Folder access unsupported in this browser. Use Download.');
     const folder = await pickMemoryFolder();
     for (const m of allMeetings) await exportMeetingToFolder(folder, m);
-    errorBox.innerHTML = `<div class="ok-box">Exported ${allMeetings.length} meetings to “${folder.name}”.</div>`;
+    showSuccess(`Exported ${allMeetings.length} meetings to “${folder.name}”.`);
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Export failed.');
   }
