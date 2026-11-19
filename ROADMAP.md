@@ -9,6 +9,7 @@
 ## Milestone 3 — Audio pipeline ✅ COMPLETE (core)
 - Tab audio via `tabCapture` + offscreen, mic, tab+mic, REC badge/timer, pause/resume/stop, chunk persistence, SW-restart recovery (`error` state, no silent loss).
 - ⚠️ **Limitation:** Chrome-only tab capture. Native desktop apps need a companion (planned, not built).
+- 🔜 Planned: optional active-tab screenshot snapshots linked to transcript timestamps. `captureVisibleTab` cannot reliably capture a non-visible tab or native desktop window, so this remains separate from the current audio path.
 
 ## Milestone 4 — Transcription ✅ COMPLETE (core)
 - Provider abstraction, Web Speech live, Cloud Whisper blobs, timestamps, honest diarization (`false`), transcript view.
