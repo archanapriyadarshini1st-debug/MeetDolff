@@ -4,10 +4,10 @@
 
 import '../styles/design-system.css';
 import { getAudio, listMeetings } from '../lib/db.js';
-import { searchMeetings } from '../lib/search.js';
+import { formatClock, GROUNDED_SYSTEM, groundedPrompt, notInMemoryMessage, retrieveEvidence, verifyCitations } from '../lib/retrieval/evidence.js';
 import { searchWeb, type WebSearchResult } from '../lib/search/web.js';
 import { createProvider } from '../lib/ai/provider.js';
-import { qaPrompt, SUMMARY_SYSTEM, summaryPrompt, projectPrompt } from '../lib/ai/prompts.js';
+import { SUMMARY_SYSTEM, summaryPrompt, projectPrompt } from '../lib/ai/prompts.js';
 import { generateReport, generateFlashcards, generateQuiz, generateMindmap } from '../lib/artifacts/artifacts.js';
 import { parseProjectPlan } from '../lib/projects/converter.js';
 import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-intelligence.js';
@@ -77,26 +77,6 @@ async function refreshRecent(): Promise<void> {
   }
 }
 
-function timestamp(seconds: number): string {
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-}
-
-function buildContext(meetings: Meeting[], scope: string, query: string): { context: string; sources: string } {
-  let pool = meetings;
-  if (scope === 'latest' && meetings.length) pool = [meetings[0]!];
-  // Prefer search-ranked results when query is specific.
-  const ranked = query ? searchMeetings(pool, query) : [];
-  const chosen = ranked.length ? ranked.slice(0, 5).map((r) => r.meeting) : pool.slice(0, 5);
-  const parts = chosen.map((m) => {
-    const transcript = m.transcript.length
-      ? m.transcript.map((seg) => `[${timestamp(seg.start)}] ${seg.speaker ? `${seg.speaker}: ` : ''}${seg.text}`).join('\n')
-      : m.transcriptText;
-    return `[${m.title} | ${m.startedAt}]\nSummary: ${m.summary ?? '—'}\nDecisions: ${m.decisions.map((d) => `${d.text}${d.evidence.length ? ` (evidence: ${d.evidence.join(', ')})` : ''}`).join('; ') || '—'}\nActions: ${m.actionItems.map((a) => `${a.text}${a.owner ? ` (owner: ${a.owner})` : ''}${a.deadline ? ` (deadline: ${a.deadline})` : ''}`).join('; ') || '—'}\nTranscript with timestamps:\n${transcript.slice(0, 9000)}`;
-  });
-  const sources = chosen.map((m) => m.title).join(', ');
-  return { context: parts.join('\n\n---\n\n'), sources };
-}
-
 async function ask(): Promise<void> {
   const q = chatInput.value.trim();
   if (!q) return;
@@ -105,23 +85,38 @@ async function ask(): Promise<void> {
   chatInput.value = '';
   try {
     const settings = await loadSettings();
-    const meetings = await listMeetings(50);
+    const meetings = await listMeetings(500);
     if (meetings.length === 0) {
       addMsg('assistant', 'No meetings in memory yet. Record a meeting first, then ask.');
       return;
     }
     const scope = (document.querySelector('input[name="scope"]:checked') as HTMLInputElement)?.value ?? 'all';
-    const { context, sources } = buildContext(meetings, scope, q);
+    const pool = scope === 'latest' ? meetings.slice(0, 1) : meetings;
+    // Deterministic retrieval first: date intent + topic ranking, numbered passages.
+    const retrieval = retrieveEvidence(pool, q);
     let external: WebSearchResult[] = [];
     if (settings.searchProvider !== 'none') external = await searchWeb(settings, q);
+    if (retrieval.passages.length === 0 && external.length === 0) {
+      // Nothing retrieved: do not ask a model to guess.
+      addMsg('assistant', notInMemoryMessage(retrieval));
+      return;
+    }
     const externalContext = external.map((r) => `${r.title} | ${r.url}\n${r.snippet}`).join('\n\n');
     const provider = createProvider(settings, settings.aiProvider);
     const res = await provider.chat([
-      { role: 'system', content: SUMMARY_SYSTEM },
-      { role: 'user', content: qaPrompt(q, context, externalContext) },
+      { role: 'system', content: GROUNDED_SYSTEM },
+      { role: 'user', content: groundedPrompt(q, retrieval, externalContext) },
     ]);
-    const externalSources = external.length ? ` · External: ${external.map((r) => r.url).join(', ')}` : '';
-    addMsg('assistant', res.text, `Memory: ${sources}${externalSources}`);
+    const verified = verifyCitations(res.text, retrieval.passages);
+    const cited = verified.citations.map((c) => `${c.title}${c.timestampSec !== null ? ` @ ${formatClock(c.timestampSec)}` : ''}`);
+    const parts = [
+      cited.length ? `Memory sources: ${cited.join(' · ')}` : 'No meeting sources cited',
+      retrieval.dateFilter ? `Date filter: ${retrieval.dateFilter.label}` : '',
+      external.length ? `External (not from your meetings): ${external.map((r) => r.url).join(', ')}` : '',
+      verified.invalid.length ? `Removed ${verified.invalid.length} citation(s) that did not match retrieved evidence` : '',
+      !verified.grounded && external.length === 0 ? '⚠ This answer cites no meeting evidence — treat it as unverified.' : '',
+    ].filter(Boolean);
+    addMsg('assistant', verified.text, parts.join(' | '));
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Failed to answer.');
   }
