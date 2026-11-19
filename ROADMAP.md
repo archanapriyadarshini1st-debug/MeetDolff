@@ -15,7 +15,7 @@
 - 🔜 Planned: inline transcript editing UI, Faster-Whisper/Whisper.cpp local adapter, diarization provider, multilingual tuning.
 
 ## Milestone 5 — Memory engine ✅ COMPLETE
-- Structured meetings, IndexedDB, portable `.md`/`.json` + `index.json`, FTS search, date/topic filters, history, export/import (export done; full import UI planned), permission recovery, download fallback.
+- Structured meetings, IndexedDB, portable `.md`/`.json` + `index.json`, FTS search, date/topic filters, history, export + JSON import, permission recovery, download fallback.
 
 ## Milestone 6 — AI intelligence ✅ COMPLETE (core)
 - Summaries, decisions/actions extraction, meeting chat, cross-meeting chat, evidence citations, “not in memory” honesty.
