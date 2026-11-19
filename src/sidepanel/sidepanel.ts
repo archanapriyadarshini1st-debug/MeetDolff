@@ -7,15 +7,16 @@ import { getAudio, listMeetings } from '../lib/db.js';
 import { searchMeetings } from '../lib/search.js';
 import { searchWeb, type WebSearchResult } from '../lib/search/web.js';
 import { createProvider } from '../lib/ai/provider.js';
-import { qaPrompt, SUMMARY_SYSTEM, summaryPrompt, projectPrompt } from '../lib/ai/prompts.js';
+import { qaPrompt, SUMMARY_SYSTEM, projectPrompt } from '../lib/ai/prompts.js';
 import { generateReport, generateFlashcards, generateQuiz, generateMindmap } from '../lib/artifacts/artifacts.js';
 import { parseProjectPlan } from '../lib/projects/converter.js';
-import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-intelligence.js';
 import { putProject, putMeeting } from '../lib/db.js';
 import { formatDateTime } from '../lib/utils/id.js';
 import type { Meeting, ProviderSettings } from '../lib/types.js';
 import { DEFAULT_PROVIDER_SETTINGS } from '../lib/types.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
+import { initSuggestionsPanel } from './suggestions-panel.js';
+import { summarizeMeeting } from '../lib/ai/summarize.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const chatLog = $('chatLog');
@@ -167,12 +168,7 @@ async function summarizeLatest(): Promise<void> {
   if (!m.transcriptText.trim()) { showError('This meeting has no transcript. Transcribe the saved audio first.'); return; }
   try {
     const settings = await loadSettings();
-    const provider = createProvider(settings, settings.aiProvider);
-    const res = await provider.chat([
-      { role: 'system', content: SUMMARY_SYSTEM },
-      { role: 'user', content: summaryPrompt(m.transcriptText) },
-    ]);
-    const updated = applyMeetingSummary(m, parseMeetingSummary(res.text));
+    const updated = await summarizeMeeting(m, settings);
     await putMeeting(updated);
     showSuccess(`Summary saved for “${updated.title}”.`);
     await refreshRecent();
@@ -261,7 +257,9 @@ $('btnMindmap').addEventListener('click', async () => {
 
 chrome.runtime.onMessage.addListener((msg: any) => {
   if (msg?.type === 'MEETING_SAVED' || msg?.type === 'MEETING_PROCESSED') void refreshRecent();
+initSuggestionsPanel({ loadSettings, listMeetings });
   if (msg?.type === 'PROCESSING_ERROR') showError(String(msg.error ?? 'Post-recording processing failed.'));
 });
 
 void refreshRecent();
+initSuggestionsPanel({ loadSettings, listMeetings });
