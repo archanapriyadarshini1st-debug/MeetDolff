@@ -32,3 +32,10 @@
 3. Diarization adapter (Pyannote / cloud).
 4. Per-operation model selection + streaming chat.
 5. Native companion spike (system audio).
+
+## Update — feat/temporal-recall-live-questions
+- ✅ Natural-language time recall wired into side-panel Q&A (`search/temporal.ts`, `search/recall.ts`).
+- ✅ Real-Time Question Suggestions (deterministic; live finals via `TRANSCRIPTION_FINAL`).
+- ✅ Inline transcript editing + speaker rename with revert and stale-summary flag (ROADMAP "Next up" #1, except automatic re-summarize: the user re-runs Summarize).
+- ◐ Companion MCP server (`companion/`): read-only tools + token auth verified; **extension → companion auto-sync not built** (manual JSON import).
+- 🔜 Still open: encrypt API keys at rest (currently plain `chrome.storage.local`), diarization, screenshot-at-timestamp, LLM-refined question suggestions, tab-capture automated test (needs a display + audible tab).

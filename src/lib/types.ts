@@ -21,6 +21,10 @@ export interface TranscriptSegment {
   text: string;
   /** Confidence 0..1 if provider supplies it */
   confidence?: number;
+  /** Provider output before the first human correction (set once, never overwritten) */
+  originalText?: string;
+  /** ISO time of the most recent human correction */
+  editedAt?: string;
 }
 
 export interface ActionItem {
@@ -64,6 +68,8 @@ export interface Meeting {
   hasAudio: boolean;
   /** Schema version for this record */
   memoryVersion: number;
+  /** True when the transcript was corrected after the summary/decisions were generated */
+  summaryStale?: boolean;
   createdAt: string;
   updatedAt: string;
 }

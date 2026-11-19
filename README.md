@@ -93,3 +93,12 @@ Local-first. No analytics, no remote code, minimal permissions (`tabCapture`, `o
 ## License
 
 Private repository. All rights reserved until a license is chosen.
+
+---
+
+## Added in the `feat/temporal-recall-live-questions` branch
+
+- **Time-based recall.** "What happened last Tuesday at 7 PM?" is resolved by `src/lib/search/temporal.ts` (not by the model) into a local date range; only meetings running near that time are sent to the AI. If none match, the side panel answers deterministically ("No meeting in memory matches …") and lists meetings that day. Supports yesterday/today, weekdays (with last/this), last/this week/month, last N days/weeks/months, ISO dates, "Nov 18th", and times (`7pm`, `19:30`, `noon`).
+- **Real-time question suggestions.** While live transcription is on, the side panel shows "Worth asking now": unowned commitments, missing deadlines, voiced uncertainty, risks, unanswered questions. Deterministic and local; each suggestion cites its timestamp. Requires the side panel to be open (it is not persisted).
+- **Transcript correction.** Dashboard → meeting → *Edit* on any segment. The provider's original is kept (`originalText`), restorable, search text is rebuilt, and the summary is flagged stale. Click a speaker label to rename it everywhere.
+- **`companion/`** — self-hosted MCP bridge for external agents. See `companion/README.md`.

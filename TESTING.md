@@ -59,3 +59,20 @@ On a desktop with a display, `npm run test:e2e` also works after changing the te
 - Fake media proves the pipeline wiring, not microphone acoustics or echo behavior.
 - AI/transcription calls require a real BYOK key; tests never use the user's key.
 - Real Chrome permissions, folder persistence after a browser restart, and service-worker kill recovery remain manual acceptance checks.
+
+## Results — feat/temporal-recall-live-questions (actually run)
+
+| Check | Result |
+|---|---|
+| `npx vitest run` | 59 passed (15 pre-existing + 44 new: temporal 25, question suggestions 9, transcript edit 10). Re-run under `TZ=Asia/Kolkata`, `America/Los_Angeles`, `Pacific/Auckland`: 59 passed each. |
+| `npx tsc --noEmit`, `npx eslint .`, `npm run build` | clean |
+| `tests/e2e/recall-and-edit.spec.ts` (Playwright 1.65 + bundled Chromium, **new headless mode**, real built `dist/` extension) | 3 passed: transcript edit persists across reload and restores; "last Tuesday at 7 PM" sends only that meeting to the model and an empty slot never calls it; live finals produce dismissible suggestions |
+| Companion (`companion/`) | typegen, tsc, `next build` clean; API flow exercised with curl (setup/claim race, login, scopes, 403 on read token for sync, validation, MCP initialize/list/call/notification, revocation); owner console driven in Chromium |
+
+Honest limits:
+- The AI endpoint in the e2e test is intercepted by Playwright (`ctx.route`); no real provider was called.
+- Live transcription finals are simulated by sending the same `TRANSCRIPTION_FINAL` message the offscreen recorder sends. Real `SpeechRecognition` is not exercised.
+- The pre-existing `tests/e2e/extension.spec.ts` uses `headless:false` and was **not** run here (no display server). Not re-verified: tab capture, mic recording, SW-suspension recovery, folder permission flows.
+- Headless Chromium on this Linux box needed system libs (libnss3 etc.); they were unpacked locally. On a normal dev machine `npx playwright install --with-deps chromium` does this.
+- Run it: `npm run build && npx playwright test tests/e2e/recall-and-edit.spec.ts`.
+- The new e2e specs pass `channel: 'chromium'`; the older spec still expects headed Chrome.

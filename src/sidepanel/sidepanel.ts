@@ -4,7 +4,8 @@
 
 import '../styles/design-system.css';
 import { getAudio, listMeetings } from '../lib/db.js';
-import { searchMeetings } from '../lib/search.js';
+import { selectMeetingsForQuestion } from '../lib/search/recall.js';
+import { suggestQuestions, type QuestionSuggestion } from '../lib/ai/question-suggestions.js';
 import { searchWeb, type WebSearchResult } from '../lib/search/web.js';
 import { createProvider } from '../lib/ai/provider.js';
 import { qaPrompt, SUMMARY_SYSTEM, summaryPrompt, projectPrompt } from '../lib/ai/prompts.js';
@@ -13,7 +14,7 @@ import { parseProjectPlan } from '../lib/projects/converter.js';
 import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-intelligence.js';
 import { putProject, putMeeting } from '../lib/db.js';
 import { formatDateTime } from '../lib/utils/id.js';
-import type { Meeting, ProviderSettings } from '../lib/types.js';
+import type { Meeting, ProviderSettings, TranscriptSegment } from '../lib/types.js';
 import { DEFAULT_PROVIDER_SETTINGS } from '../lib/types.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
 
@@ -82,17 +83,13 @@ function timestamp(seconds: number): string {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 }
 
-function buildContext(meetings: Meeting[], scope: string, query: string): { context: string; sources: string } {
-  let pool = meetings;
-  if (scope === 'latest' && meetings.length) pool = [meetings[0]!];
-  // Prefer search-ranked results when query is specific.
-  const ranked = query ? searchMeetings(pool, query) : [];
-  const chosen = ranked.length ? ranked.slice(0, 5).map((r) => r.meeting) : pool.slice(0, 5);
+function buildContext(chosen: Meeting[]): { context: string; sources: string } {
   const parts = chosen.map((m) => {
     const transcript = m.transcript.length
       ? m.transcript.map((seg) => `[${timestamp(seg.start)}] ${seg.speaker ? `${seg.speaker}: ` : ''}${seg.text}`).join('\n')
       : m.transcriptText;
-    return `[${m.title} | ${m.startedAt}]\nSummary: ${m.summary ?? '—'}\nDecisions: ${m.decisions.map((d) => `${d.text}${d.evidence.length ? ` (evidence: ${d.evidence.join(', ')})` : ''}`).join('; ') || '—'}\nActions: ${m.actionItems.map((a) => `${a.text}${a.owner ? ` (owner: ${a.owner})` : ''}${a.deadline ? ` (deadline: ${a.deadline})` : ''}`).join('; ') || '—'}\nTranscript with timestamps:\n${transcript.slice(0, 9000)}`;
+    const stale = m.summaryStale ? '\n(Note: the transcript was corrected after this summary was written; prefer the transcript.)' : '';
+    return `[${m.title} | ${m.startedAt}]\nSummary: ${m.summary ?? '—'}${stale}\nDecisions: ${m.decisions.map((d) => `${d.text}${d.evidence.length ? ` (evidence: ${d.evidence.join(', ')})` : ''}`).join('; ') || '—'}\nActions: ${m.actionItems.map((a) => `${a.text}${a.owner ? ` (owner: ${a.owner})` : ''}${a.deadline ? ` (deadline: ${a.deadline})` : ''}`).join('; ') || '—'}\nTranscript with timestamps:\n${transcript.slice(0, 9000)}`;
   });
   const sources = chosen.map((m) => m.title).join(', ');
   return { context: parts.join('\n\n---\n\n'), sources };
@@ -112,7 +109,13 @@ async function ask(): Promise<void> {
       return;
     }
     const scope = (document.querySelector('input[name="scope"]:checked') as HTMLInputElement)?.value ?? 'all';
-    const { context, sources } = buildContext(meetings, scope, q);
+    const selection = selectMeetingsForQuestion(meetings, scope === 'latest' ? 'latest' : 'all', q);
+    if (selection.noMatch) {
+      // A time was named but memory holds nothing for it: answer deterministically, never ask a model to guess.
+      addMsg('assistant', selection.note ?? 'No meeting in memory matches that time.');
+      return;
+    }
+    const { context, sources } = buildContext(selection.chosen);
     let external: WebSearchResult[] = [];
     if (settings.searchProvider !== 'none') external = await searchWeb(settings, q);
     const externalContext = external.map((r) => `${r.title} | ${r.url}\n${r.snippet}`).join('\n\n');
@@ -122,7 +125,7 @@ async function ask(): Promise<void> {
       { role: 'user', content: qaPrompt(q, context, externalContext) },
     ]);
     const externalSources = external.length ? ` · External: ${external.map((r) => r.url).join(', ')}` : '';
-    addMsg('assistant', res.text, `Memory: ${sources}${externalSources}`);
+    addMsg('assistant', res.text, `Memory: ${sources}${selection.temporal ? ` · Time: ${selection.temporal.label}` : ''}${externalSources}`);
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Failed to answer.');
   }
@@ -259,7 +262,67 @@ $('btnMindmap').addEventListener('click', async () => {
   showArtifact(`Mind map — ${m.title}`, generateMindmap(m));
 });
 
+
+// ---- Real-time question suggestions -------------------------------------
+// Fed by finalized phrases broadcast from the offscreen recorder while live
+// transcription is on. Kept in memory only; the saved meeting is built at stop.
+const liveBox = $('liveQuestions');
+const liveList = $('liveQuestionList');
+let liveSession = '';
+let liveSegments: TranscriptSegment[] = [];
+const dismissed = new Set<string>();
+
+function renderLiveQuestions(): void {
+  const items: QuestionSuggestion[] = suggestQuestions(liveSegments).filter((q) => !dismissed.has(q.question));
+  liveBox.hidden = liveSegments.length === 0;
+  liveList.replaceChildren();
+  if (items.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'muted small';
+    li.textContent = 'Nothing worth asking yet. Suggestions appear when something is left open.';
+    liveList.appendChild(li);
+    return;
+  }
+  for (const q of items) {
+    const li = document.createElement('li');
+    li.className = 'live-q';
+    const text = document.createElement('div');
+    const strong = document.createElement('strong');
+    strong.textContent = q.question;
+    const why = document.createElement('div');
+    why.className = 'muted small';
+    why.textContent = `${q.reason} (${timestamp(q.at)})`;
+    text.append(strong, why);
+    const dismiss = document.createElement('button');
+    dismiss.className = 'btn btn-sm';
+    dismiss.textContent = 'Dismiss';
+    dismiss.setAttribute('aria-label', `Dismiss suggestion: ${q.question}`);
+    dismiss.addEventListener('click', () => {
+      dismissed.add(q.question);
+      renderLiveQuestions();
+    });
+    li.append(text, dismiss);
+    liveList.appendChild(li);
+  }
+}
+
+function onLiveFinal(msg: { sessionId?: string; text?: string; at?: number }): void {
+  const sid = String(msg.sessionId ?? '');
+  const text = String(msg.text ?? '').trim();
+  if (!text) return;
+  if (sid !== liveSession) {
+    liveSession = sid;
+    liveSegments = [];
+    dismissed.clear();
+  }
+  const end = Number(msg.at ?? 0);
+  const start = liveSegments.length ? liveSegments[liveSegments.length - 1]!.end : 0;
+  liveSegments.push({ id: `live_${liveSegments.length}`, start, end: Math.max(end, start), speaker: null, text });
+  renderLiveQuestions();
+}
+
 chrome.runtime.onMessage.addListener((msg: any) => {
+  if (msg?.type === 'TRANSCRIPTION_FINAL') onLiveFinal(msg);
   if (msg?.type === 'MEETING_SAVED' || msg?.type === 'MEETING_PROCESSED') void refreshRecent();
   if (msg?.type === 'PROCESSING_ERROR') showError(String(msg.error ?? 'Post-recording processing failed.'));
 });

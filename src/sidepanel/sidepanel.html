@@ -22,6 +22,12 @@
         <button id="btnMindmap" class="btn btn-sm">Mind map</button>
       </div>
 
+      <section id="liveQuestions" class="panel" hidden aria-labelledby="liveQHead">
+        <h2 id="liveQHead" style="font-size:15px; margin:0 0 6px">Worth asking now</h2>
+        <p class="muted small" style="margin:0 0 8px">Gaps in the live conversation: unowned tasks, missing dates, open risks, unanswered questions.</p>
+        <ul id="liveQuestionList" aria-live="polite" style="list-style:none; padding:0; margin:0; display:grid; gap:8px"></ul>
+      </section>
+
       <div id="artifactBox"></div>
 
       <h2 style="font-size:15px; margin:18px 0 6px">Chat with memory</h2>

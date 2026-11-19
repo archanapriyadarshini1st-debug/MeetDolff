@@ -251,6 +251,9 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
         sendResponse({ ok: true });
       } else if (msg?.type === 'STOP_RECORDING') {
         sendResponse(await stopRecording());
+      } else if (msg?.type === 'TRANSCRIPTION_FINAL') {
+        // Delivered directly to open UI surfaces (side panel); acknowledge so the sender's channel closes.
+        sendResponse({ ok: true });
       } else if (msg?.type === 'TRANSCRIPTION_PARTIAL') {
         // Forward live mic preview to open UI surfaces without storing
         // unfinalized text as memory.
