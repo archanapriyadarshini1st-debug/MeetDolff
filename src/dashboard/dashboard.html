@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MeetDolff — Dashboard</title>
+    <link rel="stylesheet" href="../styles/design-system.css" />
+  </head>
+  <body>
+    <div class="md-wrap">
+      <header class="md-header">
+        <p class="md-eyebrow">MeetDolff · Dashboard</p>
+        <h1 class="md-title">Meeting memory</h1>
+        <p class="md-sub">Searchable history, calendar, and project plans. Everything stays on this device unless you export it.</p>
+      </header>
+
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Search meetings, topics, decisions…" aria-label="Search meetings" style="flex:1; min-width:220px; background:var(--bg); border:1px solid var(--border-strong); color:var(--text); border-radius:6px; padding:9px 10px;" />
+        <button id="btnExportAll" class="btn btn-sm">Export memory folder</button>
+        <button id="btnDownload" class="btn btn-sm">Download latest (.md/.json)</button>
+      </div>
+
+      <div id="errorBox"></div>
+
+      <div class="grid-2" style="margin-top:14px">
+        <section class="panel">
+          <h2 style="margin:0 0 8px; font-size:16px">Meetings</h2>
+          <div id="meetingList"></div>
+        </section>
+        <section class="panel">
+          <h2 style="margin:0 0 8px; font-size:16px">Calendar</h2>
+          <div class="toolbar">
+            <input id="calTitle" type="text" placeholder="Event title" style="flex:1; background:var(--bg); border:1px solid var(--border-strong); color:var(--text); border-radius:6px; padding:8px 10px;" />
+            <input id="calDate" type="date" style="background:var(--bg); border:1px solid var(--border-strong); color:var(--text); border-radius:6px; padding:8px 10px;" />
+            <button id="btnAddEvent" class="btn btn-sm btn-primary">Add</button>
+          </div>
+          <div id="calendarList"></div>
+        </section>
+      </div>
+
+      <section class="panel" style="margin-top:14px">
+        <h2 style="margin:0 0 8px; font-size:16px">Project plans</h2>
+        <div id="projectList"></div>
+      </section>
+
+      <section class="panel" style="margin-top:14px">
+        <h2 style="margin:0 0 8px; font-size:16px">Meeting detail</h2>
+        <div id="detailBox"><div class="empty">Select a meeting to view transcript, decisions, and actions.</div></div>
+      </section>
+    </div>
+    <script type="module" src="./dashboard.ts"></script>
+  </body>
+</html>
