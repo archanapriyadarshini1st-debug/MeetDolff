@@ -21,6 +21,30 @@ export interface TranscriptSegment {
   text: string;
   /** Confidence 0..1 if provider supplies it */
   confidence?: number;
+  /** True once a person has corrected this segment (text, speaker). */
+  edited?: boolean;
+  /** Text as first produced by the transcription provider (kept for audit). */
+  originalText?: string;
+}
+
+/**
+ * A screenshot of the visible tab, taken only when the user presses
+ * "Capture moment" during a recording. Stored locally (IndexedDB), never
+ * uploaded or sent to an AI provider by MeetDolff.
+ */
+export interface MeetingSnapshot {
+  id: string;
+  /** Recording-session id while recording; re-keyed to the meeting id on save. */
+  meetingId: string;
+  /** Seconds since recording start — same clock as live transcript segments. */
+  offsetSec: number;
+  capturedAt: string;
+  mime: 'image/jpeg';
+  blob: Blob;
+  /** Tab title at capture time, if Chrome exposed it. */
+  tabTitle: string | null;
+  /** Host only (no path/query) to avoid storing sensitive URLs. */
+  tabHost: string | null;
 }
 
 export interface ActionItem {
