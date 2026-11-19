@@ -4,11 +4,15 @@
  */
 
 import { OffscreenRecorder } from '../lib/audio/recorder.js';
+import { WebSpeechProvider } from '../lib/transcription/web-speech.js';
+import type { TranscriptionResult } from '../lib/transcription/provider.js';
 
 const recorder = new OffscreenRecorder();
 let chunks: Blob[] = [];
 let mime = 'audio/webm';
 let sessionId = '';
+let liveSpeech: WebSpeechProvider | null = null;
+let liveResult: TranscriptionResult | null = null;
 
 recorder.setEvents({
   onChunk: (chunk, index) => {
@@ -34,10 +38,22 @@ recorder.setEvents({
     // Send audio to service worker for IndexedDB persistence.
     // ArrayBuffer transfer keeps it structured-cloneable.
     blob.arrayBuffer().then((buf) => {
-      chrome.runtime.sendMessage({ type: 'RECORDING_STOPPED', sessionId, mime, buffer: buf }).catch(() => undefined);
+      chrome.runtime.sendMessage({ type: 'RECORDING_STOPPED', sessionId, mime, buffer: buf, liveResult }).catch(() => undefined);
     });
   },
 });
+
+function startLiveSpeech(): void {
+  try {
+    liveSpeech = new WebSpeechProvider();
+    liveSpeech.startLive((text) => {
+      chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_PARTIAL', sessionId, text }).catch(() => undefined);
+    });
+  } catch {
+    // Recording must not fail just because SpeechRecognition is unavailable.
+    liveSpeech = null;
+  }
+}
 
 chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
   (async () => {
@@ -45,13 +61,17 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
       if (msg?.target !== 'offscreen') return;
       if (msg.type === 'START_TAB') {
         chunks = [];
+        liveResult = null;
         sessionId = String(msg.sessionId ?? '');
         await recorder.startTab(msg.streamId, msg.includeMic === true);
+        if (msg.liveTranscription === true && msg.includeMic === true) startLiveSpeech();
         sendResponse({ ok: true });
       } else if (msg.type === 'START_MIC') {
         chunks = [];
+        liveResult = null;
         sessionId = String(msg.sessionId ?? '');
         await recorder.startMic();
+        if (msg.liveTranscription === true) startLiveSpeech();
         sendResponse({ ok: true });
       } else if (msg.type === 'PAUSE') {
         recorder.pause();
@@ -60,6 +80,11 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
         recorder.resume();
         sendResponse({ ok: true });
       } else if (msg.type === 'STOP') {
+        if (liveSpeech) {
+          liveSpeech.stopLive();
+          liveResult = liveSpeech.toResult();
+          liveSpeech = null;
+        }
         recorder.stop();
         sendResponse({ ok: true });
       }
