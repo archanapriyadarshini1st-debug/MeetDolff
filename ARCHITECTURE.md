@@ -74,7 +74,7 @@ Provider-independent interface (`TranscriptionProvider.transcribe(blob) → { se
 ### Storage
 - **IndexedDB (`meetdolff`, schema v2)** via `idb`: `meetings` (index `startedAt`), `audio` (final Blob), `audioChunks` (one-second recovery Blobs keyed by recording session), `calendar`, `projects`, `kv` (directory handle — structured-cloneable, **never** in `chrome.storage`).
 - **Portable files** (File System Access API): `MeetDolff Memory/index.json` + `meetings/<id>.md` + `<id>.json`. Markdown is human-readable; JSON is machine-retrievable. `index.json` is a manifest (IDs + `formatVersion`), not a DB replacement.
-- **Fallbacks:** permission loss → re-pick folder; unsupported browser → Download `.md`/`.json`; import/backup via JSON (roadmap: full import UI).
+- **Fallbacks:** permission loss → re-pick folder; unsupported browser → Download `.md`/`.json`; Settings can import valid `meetings/*.json` records back into IndexedDB (malformed JSON is skipped).
 
 ### Retrieval
 Deterministic FTS (`src/lib/search.ts`): tokenize, score by term frequency (title ×3) + coverage, snippet with `<mark>`, date/topic filters. **No vector DB** — for hundreds of meetings, FTS is faster, offline, explainable, and has no embedding cost. Revisit if scale demands it (see `TECHNICAL_DECISIONS.md`).
