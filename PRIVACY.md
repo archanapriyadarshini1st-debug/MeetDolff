@@ -58,3 +58,10 @@ No required `host_permissions`, no `history`, no `cookies`, no `webRequest`, no 
 ## External agent access (MCP)
 - Default: **no external access**.
 - If you run the local companion, it uses a revocable token, scoped read-only tools, and rate limits. Writes require your explicit approval in the extension.
+
+
+## Screenshots ("Capture moment") and live suggestions — v0.2
+
+- **Screenshots** are taken only when you press *Capture moment* during a recording. They are stored in IndexedDB on this device, linked to the meeting, deletable one by one (dashboard) or with the meeting, and are **never uploaded or sent to any AI provider** by MeetDolff. Only the tab title and host (not the full URL) are kept. Screenshots are not part of portable memory-file exports yet.
+- **Live question suggestions** are computed locally by default. If you enable *Write suggestions with my AI provider*, the last few minutes of live transcript text are sent to **your configured provider** with your own key; this is off by default and the setting is stored locally.
+- **Transcript corrections** stay on this device; the original provider text is preserved per segment.
