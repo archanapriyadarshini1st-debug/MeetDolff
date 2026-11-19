@@ -24,6 +24,21 @@
 
       <div id="artifactBox"></div>
 
+      <section aria-labelledby="liveHeading" class="live-box">
+        <h2 id="liveHeading" style="font-size:15px; margin:18px 0 4px">During the meeting</h2>
+        <p class="muted small" id="liveStatus" role="status">Waiting for a live transcript. Record with the microphone to get suggested questions.</p>
+        <p class="muted small live-interim" id="liveInterim" aria-live="off"></p>
+        <ul id="liveQuestions" class="live-list" aria-label="Suggested questions"></ul>
+        <label class="small" style="display:block; margin:6px 0">
+          <input type="checkbox" id="useAiSuggestions" />
+          Write suggestions with my AI provider <span class="muted">(sends recent transcript text to it; off by default)</span>
+        </label>
+        <div class="toolbar">
+          <button id="btnSnapshot" class="btn btn-sm" title="Saves a screenshot of the visible tab, linked to this moment in the transcript">Capture moment</button>
+        </div>
+        <p id="snapshotStatus" class="muted small" role="status">Screenshots are taken only when you press this button and stay on this device.</p>
+      </section>
+
       <h2 style="font-size:15px; margin:18px 0 6px">Chat with memory</h2>
       <div id="chatLog" class="chat-log" aria-live="polite"></div>
       <div class="chat-input">

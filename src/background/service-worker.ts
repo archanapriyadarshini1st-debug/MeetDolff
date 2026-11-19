@@ -5,7 +5,8 @@
  * session state, audio persistence to IndexedDB, meeting creation.
  */
 
-import { deleteAudioChunks, getDb, putAudio, putAudioChunk, putMeeting } from '../lib/db.js';
+import { deleteAudioChunks, getDb, listSnapshots, putAudio, putAudioChunk, putMeeting, putSnapshot, reassignSnapshots } from '../lib/db.js';
+import { hostOf, MAX_SNAPSHOTS_PER_RECORDING, snapshotOffsetSec } from '../lib/snapshots.js';
 import { newId } from '../lib/utils/id.js';
 import { createProvider } from '../lib/ai/provider.js';
 import { SUMMARY_SYSTEM, summaryPrompt } from '../lib/ai/prompts.js';
@@ -122,6 +123,49 @@ async function startRecording(audioSource: 'tab' | 'mic' | 'tab+mic'): Promise<{
   }
 }
 
+/**
+ * User-triggered screenshot of the visible tab, linked to transcript time.
+ * Uses activeTab (granted when the user clicks the MeetDolff toolbar icon on
+ * the meeting tab) — no broad host permission, no background polling.
+ */
+async function captureSnapshot(): Promise<{ ok: boolean; error?: string; offsetSec?: number; count?: number }> {
+  const session = await getSession();
+  if ((session.state !== 'recording' && session.state !== 'paused') || !session.startedAt) {
+    return { ok: false, error: 'Start a recording before capturing a moment.' };
+  }
+  const existing = await listSnapshots(session.id);
+  if (existing.length >= MAX_SNAPSHOTS_PER_RECORDING) {
+    return { ok: false, error: `Snapshot limit reached (${MAX_SNAPSHOTS_PER_RECORDING} per recording).` };
+  }
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tab?.id) throw new Error('No active tab to capture.');
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 70 });
+    const blob = await (await fetch(dataUrl)).blob();
+    const offsetSec = snapshotOffsetSec(session.startedAt, Date.now());
+    await putSnapshot({
+      id: newId('snap'),
+      meetingId: session.id,
+      offsetSec,
+      capturedAt: new Date().toISOString(),
+      mime: 'image/jpeg',
+      blob,
+      tabTitle: tab.title ?? null,
+      tabHost: hostOf(tab.url),
+    });
+    return { ok: true, offsetSec, count: existing.length + 1 };
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : 'Snapshot failed.';
+    const permission = /activeTab|cannot access|permission/i.test(raw);
+    return {
+      ok: false,
+      error: permission
+        ? 'Chrome only allows a snapshot of the tab where you last opened MeetDolff. Click the MeetDolff toolbar icon on the meeting tab, then press Capture moment again.'
+        : raw,
+    };
+  }
+}
+
 async function stopRecording(): Promise<{ ok: boolean; error?: string; meetingId?: string }> {
   const session = await getSession();
   if (session.state !== 'recording' && session.state !== 'paused') {
@@ -201,6 +245,7 @@ async function handleRecordingStopped(recordingSessionId: string, mime: string, 
   };
   await getDb(); // ensure DB exists
   await putMeeting(meeting);
+  await reassignSnapshots(sessionId, meetingId);
   if (blob.size > 0) {
     await putAudio({ meetingId, blob, mime: mime || 'audio/webm', createdAt: now.toISOString() });
   }
@@ -290,6 +335,12 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
         const s = await getSession();
         await setSession({ ...s, state: 'error', error: String(msg.error ?? 'Recording error') });
         sendResponse({ ok: true });
+      } else if (msg?.type === 'LIVE_SEGMENT') {
+        // Broadcast straight from the offscreen document to open UI surfaces
+        // (side panel). Acknowledge so the sender's channel doesn't stay open.
+        sendResponse({ ok: true });
+      } else if (msg?.type === 'CAPTURE_SNAPSHOT') {
+        sendResponse(await captureSnapshot());
       } else if (msg?.type === 'OPEN_SIDE_PANEL') {
         try {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

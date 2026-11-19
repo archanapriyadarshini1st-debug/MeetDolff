@@ -124,3 +124,17 @@ Tool schemas are defined in `src/lib/mcp/server.ts`. Default read-only. Any writ
 ## 10. Testing
 
 Vitest (unit: search, memory markdown, project parsing, artifacts) + Playwright (real Chrome, unpacked extension: load, popup/sidepanel render, dashboard search, settings save, no-secrets check). Synthetic audio fixtures; honest limitations in `TESTING.md`.
+
+
+## v0.2 additions
+
+```
+offscreen (Web Speech) ──LIVE_SEGMENT──▶ side panel live.ts ──▶ ai/suggestions.ts (rules, optional AI)
+side panel ──CAPTURE_SNAPSHOT──▶ service worker ──captureVisibleTab (activeTab)──▶ IndexedDB.snapshots
+                                  stop ─▶ reassignSnapshots(sessionId → meetingId)
+dashboard ──transcript-view.ts──▶ transcript-edit.ts (pure) ──▶ putMeeting
+```
+
+- IndexedDB schema **v3**: new `snapshots` store (`id`, index `meetingId`). Upgrade is additive; existing data untouched.
+- Snapshot offsets use the same wall-clock-since-start clock as live transcript segments (pauses are not subtracted — consistent with the existing live transcript).
+- Pure logic (`transcript-edit`, `ai/suggestions`, `snapshots`) is unit-tested and kept free of `chrome.*` and DOM.

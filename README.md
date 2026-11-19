@@ -16,6 +16,9 @@ MeetDolff listens to meetings **only with explicit permission**, transcribes the
 - **Search** — offline full-text search across transcripts, summaries, decisions, actions. Date/topic filters.
 - **AI intelligence (BYOK)** — OpenAI-compatible chat (OpenAI/Groq/Together/local Ollama…), Anthropic, or Gemini adapter selectable in Settings. Summaries, decisions, action items, cross-meeting Q&A — all grounded, with “not in memory” honesty.
 - **Opt-in web search** — Tavily or Brave Search can be configured separately; external results and URLs are kept distinct from meeting memory.
+- **Live question suggestions** — while recording with the mic, the side panel suggests what to ask next (missing owners, vague dates, unsettled decisions, risks, figures). Rule-based and offline by default, each suggestion quotes the words it came from; optional AI mode is opt-in.
+- **Capture moment** — one click saves a screenshot of the visible tab, linked to the transcript timestamp; the dashboard shows it next to the matching transcript lines and lets you play the audio from any timestamp.
+- **Transcript editing** — fix words and speaker labels inline; the original text is kept and edited lines are marked. Re-summarize afterwards.
 - **Dashboard** — meeting history, detail view (transcript with timestamps), calendar (color-coded, linked to meetings), project plans with approval.
 - **Meeting → Project** — converts a meeting into objectives/tasks/milestones/risks (JSON, reviewable, requires approval).
 - **Artifacts** — reports, flashcards, quizzes, mind maps (Mermaid), infographic text — deterministic templates from memory.
@@ -24,6 +27,7 @@ MeetDolff listens to meetings **only with explicit permission**, transcribes the
 ## What it does NOT do (yet)
 
 - Capture native desktop apps (Zoom desktop, etc.) — Chrome-only tab capture. A native companion is on the roadmap.
+- Live transcript for tab-only audio (Web Speech listens to the microphone). Screenshots of native desktop windows or background tabs (Chrome `activeTab` limit).
 - Real speaker diarization — needs a dedicated diarization provider (roadmap).
 - Vector search — deliberately not used; deterministic FTS is faster, offline, and explainable for this scale.
 - Host a public MCP server from the extension — impossible by design; use the local-companion architecture in `ARCHITECTURE.md`.

@@ -3,12 +3,18 @@
  */
 
 import '../styles/design-system.css';
-import { getAudio, listMeetings, listCalendarEvents, putCalendarEvent, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
+import { deleteSnapshot, getAudio, listMeetings, listCalendarEvents, listSnapshots, putCalendarEvent, putMeeting, deleteCalendarEvent, listProjectsForMeeting } from '../lib/db.js';
+import { createProvider } from '../lib/ai/provider.js';
+import { SUMMARY_SYSTEM, summaryPrompt } from '../lib/ai/prompts.js';
+import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-intelligence.js';
+import { countEdited } from '../lib/transcript-edit.js';
+import { formatOffset } from '../lib/snapshots.js';
+import { disposeSnapshotUrls, renderSnapshotGallery, renderTranscriptView } from './transcript-view.js';
 import { searchMeetings } from '../lib/search.js';
 import { createEvent, formatTime } from '../lib/calendar/calendar.js';
 import { downloadMeeting, exportMeetingToFolder, getStoredFolder, pickMemoryFolder, isFileSystemAccessSupported } from '../lib/memory-files.js';
 import { formatDateTime } from '../lib/utils/id.js';
-import type { Meeting } from '../lib/types.js';
+import { DEFAULT_PROVIDER_SETTINGS, type Meeting } from '../lib/types.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const searchInput = $('searchInput') as HTMLInputElement;
@@ -71,6 +77,7 @@ async function showDetail(id: string): Promise<void> {
   const m = allMeetings.find((x) => x.id === id);
   if (!m) return;
   detailBox.innerHTML = '';
+  disposeSnapshotUrls();
   const wrap = document.createElement('div');
   wrap.innerHTML = `
     <h3 style="margin:0 0 4px"></h3>
@@ -78,13 +85,15 @@ async function showDetail(id: string): Promise<void> {
     <div class="toolbar">
       <button class="btn btn-sm" data-act="export">Export to folder</button>
       <button class="btn btn-sm" data-act="download">Download .md/.json</button>
+      <button class="btn btn-sm" data-act="resummarize">Re-summarize</button>
       <button class="btn btn-sm" data-act="delete">Delete</button>
     </div>
     <div class="audio-wrap"></div>
     <h4>Summary</h4><p class="summary"></p>
     <h4>Decisions</h4><ul class="decisions"></ul>
     <h4>Action items</h4><ul class="actions"></ul>
-    <h4>Transcript</h4><div class="transcript"></div>
+    <h4>Captured moments</h4><div class="snapshots"></div>
+    <h4>Transcript</h4><p class="muted small edit-note" role="status"></p><div class="transcript"></div>
   `;
   wrap.querySelector('h3')!.textContent = m.title;
   wrap.querySelector('.muted')!.textContent = `${formatDateTime(m.startedAt)} → ${formatDateTime(m.endedAt)} · ${m.audioSource} · ${m.transcript.length} segments`;
@@ -115,24 +124,66 @@ async function showDetail(id: string): Promise<void> {
     label.textContent = 'Saved recording';
     wrap.querySelector('.audio-wrap')!.append(label, audio);
   }
-  const tr = wrap.querySelector('.transcript')!;
-  for (const seg of m.transcript) {
-    const div = document.createElement('div');
-    div.className = 'seg';
-    const t = document.createElement('span');
-    t.className = 't';
-    t.textContent = `[${String(Math.floor(seg.start / 60)).padStart(2, '0')}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}]`;
-    const body = document.createElement('span');
-    if (seg.speaker) {
-      const spk = document.createElement('span');
-      spk.className = 'spk';
-      spk.textContent = `${seg.speaker}: `;
-      body.appendChild(spk);
+  const editNote = wrap.querySelector('.edit-note') as HTMLElement;
+  const snapshots = await listSnapshots(m.id);
+  const audioEl = wrap.querySelector('audio') as HTMLAudioElement | null;
+  const tr = wrap.querySelector('.transcript') as HTMLElement;
+  renderTranscriptView(tr, {
+    meeting: m,
+    snapshots,
+    audio: audioEl,
+    onError: showError,
+    onSave: async (updated) => {
+      await putMeeting(updated);
+      allMeetings = allMeetings.map((x) => (x.id === updated.id ? updated : x));
+      const edited = countEdited(updated);
+      editNote.textContent = edited ? `${edited} corrected segment${edited === 1 ? '' : 's'}. Re-summarize to refresh the summary, decisions and actions.` : '';
+    },
+  });
+  const editedNow = countEdited(m);
+  editNote.textContent = editedNow ? `${editedNow} corrected segment${editedNow === 1 ? '' : 's'}. Re-summarize to refresh the summary, decisions and actions.` : '';
+  const gallery = wrap.querySelector('.snapshots') as HTMLElement;
+  const drawGallery = (list: typeof snapshots): void =>
+    renderSnapshotGallery(
+      gallery,
+      list,
+      (s) => {
+        const fig = tr.querySelector('.snap-preview') as HTMLElement | null;
+        const img = fig?.querySelector('img');
+        const cap = fig?.querySelector('figcaption');
+        if (!fig || !img || !cap) return;
+        img.src = URL.createObjectURL(s.blob);
+        cap.textContent = `Screen at ${formatOffset(s.offsetSec)}${s.tabTitle ? ` · ${s.tabTitle}` : ''}`;
+        fig.hidden = false;
+      },
+      async (s) => {
+        await deleteSnapshot(s.id);
+        drawGallery(list.filter((x) => x.id !== s.id));
+      },
+    );
+  drawGallery(snapshots);
+  wrap.querySelector('[data-act="resummarize"]')!.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget as HTMLButtonElement;
+    showError(null);
+    btn.disabled = true;
+    try {
+      const fresh = allMeetings.find((x) => x.id === m.id) ?? m;
+      if (!fresh.transcriptText.trim()) throw new Error('This meeting has no transcript to summarize.');
+      const stored = (await chrome.storage.local.get('providerSettings')) as any;
+      const settings = { ...DEFAULT_PROVIDER_SETTINGS, ...(stored?.providerSettings ?? {}) };
+      const res = await createProvider(settings, settings.aiProvider).chat([
+        { role: 'system', content: SUMMARY_SYSTEM },
+        { role: 'user', content: summaryPrompt(fresh.transcriptText) },
+      ]);
+      await putMeeting(applyMeetingSummary(fresh, parseMeetingSummary(res.text)));
+      await refreshMeetings();
+      await showDetail(m.id);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Re-summarize failed.');
+    } finally {
+      btn.disabled = false;
     }
-    body.appendChild(document.createTextNode(seg.text));
-    div.append(t, body);
-    tr.appendChild(div);
-  }
+  });
   wrap.querySelector('[data-act="download"]')!.addEventListener('click', () => downloadMeeting(m));
   wrap.querySelector('[data-act="export"]')!.addEventListener('click', async () => {
     showError(null);
