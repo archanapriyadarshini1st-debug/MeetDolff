@@ -15,6 +15,7 @@ import { putProject, putMeeting } from '../lib/db.js';
 import { formatDateTime } from '../lib/utils/id.js';
 import type { Meeting, ProviderSettings } from '../lib/types.js';
 import { loadProviderSettings } from '../lib/settings-store.js';
+import { parseSuggestions, SUGGEST_SYSTEM, suggestionPrompt, SuggestionPacer } from '../lib/ai/suggestions.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -253,7 +254,89 @@ $('btnMindmap').addEventListener('click', async () => {
   showArtifact(`Mind map — ${m.title}`, generateMindmap(m));
 });
 
+// ---- Live question suggestions (opt-in, paced, never auto-fills the chat) ----
+const sugEnabled = $('sugEnabled') as HTMLInputElement;
+const sugStatus = $('sugStatus');
+const sugList = $('sugList');
+const pacer = new SuggestionPacer();
+const shownQuestions: string[] = [];
+
+async function runSuggestions(excerpt: string): Promise<void> {
+  const settings = await loadSettings();
+  if (!settings.apiKey) {
+    sugStatus.textContent = 'Add an API key in Settings to get suggestions.';
+    return;
+  }
+  sugStatus.textContent = 'Thinking about what to ask…';
+  const res = await createProvider(settings, settings.aiProvider).chat(
+    [
+      { role: 'system', content: SUGGEST_SYSTEM },
+      { role: 'user', content: suggestionPrompt(excerpt, shownQuestions) },
+    ],
+    { temperature: 0.5 },
+  );
+  const fresh = parseSuggestions(res.text, shownQuestions);
+  sugStatus.textContent = fresh.length ? 'Click a question to put it in the box below.' : 'Nothing worth asking yet.';
+  for (const q of fresh) {
+    shownQuestions.push(q);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-sm sug-item';
+    b.textContent = q;
+    b.addEventListener('click', () => {
+      chatInput.value = q;
+      chatInput.focus();
+    });
+    sugList.prepend(b);
+  }
+  while (sugList.children.length > 8) sugList.lastElementChild?.remove();
+}
+
+async function maybeSuggest(): Promise<void> {
+  if (!sugEnabled.checked || !pacer.shouldRun(Date.now())) return;
+  const excerpt = pacer.begin(Date.now());
+  try {
+    await runSuggestions(excerpt);
+  } catch (e) {
+    sugStatus.textContent = e instanceof Error ? `Suggestions unavailable: ${e.message}` : 'Suggestions unavailable.';
+  } finally {
+    pacer.end();
+  }
+}
+
+sugEnabled.addEventListener('change', async () => {
+  await chrome.storage.local.set({ suggestionsEnabled: sugEnabled.checked });
+  sugStatus.textContent = sugEnabled.checked ? 'Listening… suggestions appear as the conversation develops.' : 'Off. Nothing is sent to your AI provider.';
+});
+
+$('btnSuggestNow').addEventListener('click', async () => {
+  showError(null);
+  let excerpt = pacer.peek();
+  if (!excerpt) {
+    const m = await latestMeeting();
+    excerpt = m?.transcriptText.slice(-2400) ?? '';
+  }
+  if (!excerpt) {
+    sugStatus.textContent = 'No transcript to work from yet.';
+    return;
+  }
+  try {
+    await runSuggestions(excerpt);
+  } catch (e) {
+    showError(e instanceof Error ? e.message : 'Suggestions failed.');
+  }
+});
+
+void chrome.storage.local.get('suggestionsEnabled').then((r) => {
+  sugEnabled.checked = r['suggestionsEnabled'] === true;
+  if (sugEnabled.checked) sugStatus.textContent = 'Listening… suggestions appear as the conversation develops.';
+});
+
 chrome.runtime.onMessage.addListener((msg: any) => {
+  if (msg?.type === 'TRANSCRIPTION_FINAL') {
+    pacer.add(String(msg.text ?? ''));
+    void maybeSuggest();
+  }
   if (msg?.type === 'MEETING_SAVED' || msg?.type === 'MEETING_PROCESSED') void refreshRecent();
   if (msg?.type === 'PROCESSING_ERROR') showError(String(msg.error ?? 'Post-recording processing failed.'));
 });

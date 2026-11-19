@@ -249,3 +249,8 @@ mark { background: #fff; color: #000; padding: 0 2px; border-radius: 2px; }
 .badge-edited { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 5px; color: var(--muted, #888); }
 .stale-box { margin-bottom: 8px; }
 @media (hover: none) { .seg-edit { opacity: 1; } }
+
+/* Question suggestions */
+.sug-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sug-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.sug-item { text-align: left; white-space: normal; line-height: 1.35; }

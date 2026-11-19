@@ -255,6 +255,11 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
         // unfinalized text as memory.
         chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_PARTIAL', text: String(msg.text ?? '') }).catch(() => undefined);
         sendResponse({ ok: true });
+      } else if (msg?.type === 'TRANSCRIPTION_FINAL') {
+        // Relay finalized live sentences to open UI (side panel suggestions). Not persisted here;
+        // the saved transcript still comes from the recorder's final result.
+        chrome.runtime.sendMessage({ type: 'TRANSCRIPTION_FINAL', text: String(msg.text ?? '') }).catch(() => undefined);
+        sendResponse({ ok: true });
       } else if (msg?.type === 'RECORDING_CHUNK') {
         const recordingSessionId = String(msg.sessionId ?? '');
         const index = Number(msg.index ?? 0);
