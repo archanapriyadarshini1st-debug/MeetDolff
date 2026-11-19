@@ -6,7 +6,7 @@
 import '../styles/design-system.css';
 import { DEFAULT_PROVIDER_SETTINGS, type ProviderSettings } from '../lib/types.js';
 import { createProvider } from '../lib/ai/provider.js';
-import { getStoredFolder, pickMemoryFolder, isFileSystemAccessSupported } from '../lib/memory-files.js';
+import { getStoredFolder, importMeetingsFromFolder, pickMemoryFolder, isFileSystemAccessSupported } from '../lib/memory-files.js';
 import { kvDelete } from '../lib/db.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -117,6 +117,19 @@ $('btnPickFolder').addEventListener('click', async () => {
     await refreshFolderStatus();
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Folder selection failed.');
+  }
+});
+
+$('btnImport').addEventListener('click', async () => {
+  showError(null);
+  try {
+    if (!isFileSystemAccessSupported()) throw new Error('Folder access unsupported. Use a Chromium browser to import memory files.');
+    let folder = await getStoredFolder();
+    if (!folder) folder = await pickMemoryFolder();
+    const count = await importMeetingsFromFolder(folder);
+    showSuccess(`Imported ${count} meeting${count === 1 ? '' : 's'} from memory files.`);
+  } catch (e) {
+    showError(e instanceof Error ? e.message : 'Memory import failed.');
   }
 });
 
