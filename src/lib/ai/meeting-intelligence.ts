@@ -45,6 +45,7 @@ export function applyMeetingSummary(meeting: Meeting, summary: ParsedMeetingSumm
   return {
     ...meeting,
     summary: summary.summary || meeting.summary,
+    summaryStale: false,
     topics: summary.topics,
     decisions: summary.decisions,
     actionItems: summary.actionItems,
