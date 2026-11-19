@@ -21,6 +21,10 @@ export interface TranscriptSegment {
   text: string;
   /** Confidence 0..1 if provider supplies it */
   confidence?: number;
+  /** True when a user corrected this segment after transcription */
+  edited?: boolean;
+  /** Original provider text, kept the first time a segment is edited */
+  originalText?: string;
 }
 
 export interface ActionItem {
@@ -50,6 +54,8 @@ export interface Meeting {
   /** Plain-text transcript joined for search */
   transcriptText: string;
   summary: string | null;
+  /** True when the transcript was edited after the summary/decisions were generated */
+  summaryStale?: boolean;
   topics: string[];
   decisions: Decision[];
   actionItems: ActionItem[];
