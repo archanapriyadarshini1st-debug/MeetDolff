@@ -236,3 +236,40 @@ mark { background: #fff; color: #000; padding: 0 2px; border-radius: 2px; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } .cal-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Transcript editing */
+.seg { display: flex; gap: 10px; align-items: flex-start; }
+.seg-body { flex: 1; min-width: 0; }
+.seg-actions { display: inline-flex; gap: 2px; margin-left: 8px; opacity: 0; transition: opacity 120ms ease; }
+.seg:hover .seg-actions, .seg:focus-within .seg-actions { opacity: 1; }
+.seg-body > .seg-actions:only-child, .seg-input + .seg-actions { opacity: 1; margin-left: 0; margin-top: 6px; display: flex; }
+.seg-edited { border-left: 2px solid var(--border-strong); padding-left: 8px; }
+.seg-original { margin-top: 2px; }
+.seg-input {
+  width: 100%; background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 8px 10px; line-height: 1.5; resize: vertical;
+}
+.speaker-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.speaker-bar select, .speaker-bar input {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 8px;
+}
+.stale-banner {
+  border: 1px solid var(--border-strong); border-left-width: 3px; background: var(--surface);
+  padding: 8px 12px; margin: 10px 0; font-size: 13px; color: var(--muted);
+}
+.stale-banner[hidden] { display: none; }
+@media (hover: none) { .seg-actions { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .seg-actions { transition: none; } }
+
+/* Question suggestions */
+.sug-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 10px; }
+.sug { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 12px; }
+.sug-q { margin: 0 0 2px; font-size: 14px; line-height: 1.45; }
+.sug-ev { margin: 4px 0; padding: 0; color: var(--faint); font-style: italic; }
+.seg-actions-row { display: flex; gap: 2px; margin-left: -8px; }
+.sug-manual { margin: 8px 0; }
+.sug-manual textarea {
+  width: 100%; margin: 8px 0; background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; resize: vertical;
+}
+.sug-ai { display: block; margin-top: 8px; }
