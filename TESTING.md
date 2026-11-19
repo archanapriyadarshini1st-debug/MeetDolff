@@ -53,7 +53,26 @@ On a desktop with a display, `npm run test:e2e` also works after changing the te
 - `xvfb-run -a npm run test:e2e` — **5 tests passed**: page rendering, fake-mic pause/resume + persistence/audio playback, settings persistence, and bundled-secret scan.
 - `npm audit` — **0 vulnerabilities** (production and development trees at the time of this run).
 
+## Verification run — v0.2 additions (live questions, Capture moment, transcript editing)
+
+Run in a sandbox with **no display and no root**: Playwright's full Chromium in new headless mode (`PW_HEADLESS=1`, supports extensions) with the missing system libraries unpacked into a user directory and exposed via `LD_LIBRARY_PATH`.
+
+- `npm run typecheck` — passed. `npm run lint` — passed.
+- `npm test` — **7 files, 34 tests passed** (19 new: transcript editing, suggestion rules/AI parsing/throttling, snapshot timing helpers).
+- `npm run build` — passed (DB schema v3 adds a `snapshots` store; no new permissions).
+- `PW_HEADLESS=1 npx playwright test` — **8 passed** (5 pre-existing + 3 new, real unpacked extension):
+  1. Seeds IndexedDB, opens the dashboard, links a screenshot to the nearby segment only, decodes the stored blob, edits text + speaker, verifies the *edited* tag and preserved original, reloads and verifies persistence, and verifies that empty text is rejected visibly.
+  2. Sends live-segment messages to the side panel; verifies rule-based questions, dismissal, the AI opt-in default (off) and its persistence.
+  3. Capture moment: refuses when idle; during a fake-mic recording it hit Chrome's `activeTab` restriction and showed the guidance message. **A successful real capture was NOT verified here** — it needs the toolbar icon clicked on a real meeting tab (manual check).
+- Bug found by these tests and fixed: the service worker never answered `LIVE_SEGMENT`, leaving the sender's channel open (now acknowledged).
+
+Headed-Chrome runs (`xvfb-run -a npm run test:e2e`) behave as before; `PW_HEADLESS=1` is opt-in.
+
 ## Known limitations (honest)
+
+- Capture moment: real screenshot success depends on `activeTab` (user clicked the MeetDolff icon on that tab). Not verified in automation.
+- Live suggestions are verified on synthetic segments; real Web Speech recognition quality is not automatable and was not tested.
+- Rule-based suggestions are English-only keyword heuristics, not understanding.
 
 - Playwright does not prove real `tabCapture` on every meeting platform; that needs an audible tab and a real user gesture.
 - Fake media proves the pipeline wiring, not microphone acoustics or echo behavior.
