@@ -59,3 +59,40 @@ On a desktop with a display, `npm run test:e2e` also works after changing the te
 - Fake media proves the pipeline wiring, not microphone acoustics or echo behavior.
 - AI/transcription calls require a real BYOK key; tests never use the user's key.
 - Real Chrome permissions, folder persistence after a browser restart, and service-worker kill recovery remain manual acceptance checks.
+
+## Results — transcript editing, question suggestions, MCP companion
+
+Run on 2026-11-19, Node 22, Playwright 1.5x with full Chromium (`channel: 'chromium'`, new headless). Numbers below are from actual runs of the commands shown.
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` | pass |
+| `npm run lint` | pass (0 errors, 0 warnings) |
+| `npm test` | **51 / 51 passed** (7 files) |
+| `npm run build` | pass |
+| `npm run build:companion && npm run test:companion` | pass — real stdio session against the built binary |
+| `npx playwright test` | **11 / 11 passed** (5 existing + 6 new) |
+| `npm audit --omit=dev` | 0 vulnerabilities |
+
+### Headless extension testing (no Xvfb needed)
+
+Chromium's *headless shell* cannot load extensions, but the full Chromium build in **new headless** mode can. `extensionContext()` now uses `channel: 'chromium', headless: true` by default; set `PW_HEADED=1` to run headed (e.g. `xvfb-run -a`). On a minimal Linux image you may need Chromium's shared libraries (`npx playwright install-deps chromium`, needs root).
+
+### New browser scenarios (`tests/e2e/editing-suggestions.spec.ts`)
+
+Fixtures are seeded directly into the extension's IndexedDB; provider traffic is intercepted by Playwright routes (no network, no real keys).
+
+- Edit a segment → persisted with `edited` + `originalText`, `transcriptText` rebuilt, summary flagged stale, survives reload, revert restores the original.
+- Empty edit rejected with a visible error; nothing written.
+- Assign a speaker name → all segments + `participants` updated and persisted.
+- Re-summarize → the provider receives the **edited** text (not the original), stale flag cleared, user edits survive.
+- Provider failure (HTTP 401) → error shown, button re-enabled, meeting untouched.
+- Suggestions: AI opt-in unchecked by default; follow-ups from memory shown; pasted text yields owner / deadline / rationale questions with verbatim evidence; dismiss works; clear works; no page errors.
+
+### Not covered by automation (honest gaps)
+
+- **Real tab audio** (`tabCapture`) and real microphone speech: need a user gesture / audible media. The fake-device mic path is covered; live Web Speech partials feeding the suggestions panel are exercised only through the pasted-text path and unit tests, not an end-to-end live recognizer.
+- **Real LLM quality** for suggestions/summaries: only fakes and routed fixtures are used. The LLM suggestion path is protected by a deterministic grounding filter (tested), but output quality with real models is unmeasured.
+- **Service-worker suspension/recovery**, **folder-permission denial flows** and the **File System Access picker** cannot be driven in headless Chromium.
+- **MCP host interop**: the companion is verified against its own stdio client, not yet against Claude Desktop / Cursor.
+
