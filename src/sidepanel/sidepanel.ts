@@ -25,7 +25,21 @@ const artifactBox = $('artifactBox');
 const recentList = $('recentList');
 
 function showError(msg: string | null): void {
-  errorBox.innerHTML = msg ? `<div class="error" role="alert">${msg}</div>` : '';
+  errorBox.replaceChildren();
+  if (!msg) return;
+  const box = document.createElement('div');
+  box.className = 'error';
+  box.setAttribute('role', 'alert');
+  box.textContent = msg;
+  errorBox.appendChild(box);
+}
+
+function showSuccess(msg: string): void {
+  artifactBox.replaceChildren();
+  const box = document.createElement('div');
+  box.className = 'ok-box';
+  box.textContent = msg;
+  artifactBox.appendChild(box);
 }
 
 async function loadSettings(): Promise<ProviderSettings> {
@@ -133,7 +147,7 @@ async function transcribeLatest(): Promise<void> {
       updatedAt: new Date().toISOString(),
     };
     await putMeeting(updated);
-    artifactBox.innerHTML = `<div class="ok-box">Transcribed “${updated.title}” with ${result.segments.length} timestamped segments. Speakers are not labeled by this provider.</div>`;
+    showSuccess(`Transcribed “${updated.title}” with ${result.segments.length} timestamped segments. Speakers are not labeled by this provider.`);
     await refreshRecent();
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Transcription failed.');
@@ -154,7 +168,7 @@ async function summarizeLatest(): Promise<void> {
     ]);
     const updated = applyMeetingSummary(m, parseMeetingSummary(res.text));
     await putMeeting(updated);
-    artifactBox.innerHTML = `<div class="ok-box">Summary saved for “${updated.title}”.</div>`;
+    showSuccess(`Summary saved for “${updated.title}”.`);
     await refreshRecent();
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Summarization failed.');
@@ -175,7 +189,7 @@ async function convertToProject(): Promise<void> {
     ]);
     const plan = parseProjectPlan(res.text, m.id);
     await putProject(plan);
-    artifactBox.innerHTML = `<div class="ok-box">Project plan “${plan.title}” created (pending approval). Tasks: ${plan.tasks.length}, Milestones: ${plan.milestones.length}. Review in Dashboard → Projects.</div>`;
+    showSuccess(`Project plan “${plan.title}” created (pending approval). Tasks: ${plan.tasks.length}, Milestones: ${plan.milestones.length}. Review in Dashboard → Projects.`);
   } catch (e) {
     showError(e instanceof Error ? e.message : 'Project conversion failed.');
   }
