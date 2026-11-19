@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:companion": "vite build --config vite.companion.config.ts",
+    "test:companion": "node scripts/companion-smoke.mjs"
   },
   "dependencies": {
     "idb": "^8.0.0"
