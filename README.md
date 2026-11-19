@@ -51,7 +51,7 @@ See `ROADMAP.md` for completed vs. planned, and `TECHNICAL_DECISIONS.md` for why
 2. **Record** from the popup. Stop → meeting is durably saved to memory (IndexedDB) with audio. One-second recovery chunks are written while recording.
 3. **Side panel** → *Transcribe latest* (Cloud Whisper for recorded audio) → *Summarize latest* → *Ask* (“What did we decide about the frontend?”). If Cloud transcription + a BYOK chat provider are configured, post-stop transcription/summarization runs automatically.
 4. **Dashboard** → search, listen to the saved recording, view timestamped transcript, add calendar events, approve project plans.
-5. **Settings → Memory folder** → choose a folder to export portable `.md`/`.json` memory files.
+5. **Settings → Memory folder** → choose a folder to export portable `.md`/`.json` memory files, or **Import .json memory** to load portable meeting records back into IndexedDB.
 
 ## Configuration
 
