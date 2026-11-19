@@ -36,7 +36,13 @@ function setStatus(state: string, elapsedSec: number): void {
 }
 
 function showError(msg: string | null): void {
-  errorBox.innerHTML = msg ? `<div class="error" role="alert">${msg}</div>` : '';
+  errorBox.replaceChildren();
+  if (!msg) return;
+  const box = document.createElement('div');
+  box.className = 'error';
+  box.setAttribute('role', 'alert');
+  box.textContent = msg;
+  errorBox.appendChild(box);
 }
 
 function startTicker(): void {
