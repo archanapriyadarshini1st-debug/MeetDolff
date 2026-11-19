@@ -16,6 +16,7 @@ import { formatDateTime } from '../lib/utils/id.js';
 import type { Meeting, ProviderSettings } from '../lib/types.js';
 import { DEFAULT_PROVIDER_SETTINGS } from '../lib/types.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
+import { initLive } from './live.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const chatLog = $('chatLog');
@@ -265,3 +266,4 @@ chrome.runtime.onMessage.addListener((msg: any) => {
 });
 
 void refreshRecent();
+initLive({ loadSettings });
