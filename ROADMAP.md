@@ -52,13 +52,28 @@
   structural issues across five surfaces.
 - ✅ Visual harness (`npm run audit:shots`) and e2e grown 7 → 12 scenarios, unit 63 → 78.
 
+## Delivered 2026-11-21 (v0.3.0 — notes-first capture)
+- ✅ **Live notes.** A notes box in the side panel; text is held against the *recording session* while a
+  call is running (the meeting record does not exist yet) and adopted by the service worker when the
+  meeting is created. Matching on session id is what prevents a stale draft being attached to a new
+  recording. Draft slot is consumed on save.
+- ✅ **Notes merge.** "Merge with transcript" rewrites the user's own notes using the transcript as
+  evidence — completing fragments, correcting names/numbers, appending a "From the transcript"
+  section, flagging contradictions instead of overwriting them. Raw notes are preserved, the merged
+  version is flagged stale when the notes are edited afterwards, and "Show as written" is always
+  available.
+- ✅ **Notes are the headline artifact** — the dashboard hero renders merged notes in place of the AI
+  summary, and the detail view shows merged + original.
+- ✅ **Project plans are readable before approval** — objectives, tasks, milestones, dependencies and
+  risks in an expandable panel, instead of counts plus a blind Approve button.
+- ✅ **Safe notes rendering** — `src/lib/utils/markdown.ts`: no `innerHTML`, no heading elements
+  emitted from model output (keeps the document outline and the a11y audit intact).
+- ✅ 102 unit tests (+24), 16 e2e tests (+4), 0 axe-core violations across 7 audited surfaces.
+
 ## Next up (priority order, updated 2026-11-21)
 
-**P0 — the product gap, not polish**
-1. **Notes-merge loop.** Let the user type rough notes during a call and have the AI enhance *their*
-   notes against the transcript. This is Granola's retention mechanism (its $1.5B valuation and
-   near-zero churn come from notes-first artifacts, not better transcripts) and it is the largest
-   remaining gap here. Needs a notes store on the meeting record plus a notes-aware prompt.
+**P0 — the remaining product gap**
+1. ~~Notes-merge loop~~ — **delivered in v0.3.0** (above).
 2. **In-call recording indicator.** The REC badge lives only on the toolbar icon; every competitor
    shows live capture in the call. Needs a content-script overlay and a deliberate decision about
    host permissions — worth doing carefully rather than quickly.
@@ -75,6 +90,8 @@
 7. Companion: `index.json` freshness check, calendar export, auto-export of every meeting.
 8. Bulk export round-trip test — the anti-lock-in claim deserves proof, not a promise.
 9. Audio summaries (TTS), slides export, native companion spike (system audio).
+10. Notes: per-meeting templates (1:1 / standup / interview) and a "carry open action items into the
+    next meeting's notes" preamble — cheap now that notes exist on the record.
 
 ### Demoted, with reasons
 - **Flashcards / quiz / mind-map artifacts** — deterministic filler that competed with chat for the

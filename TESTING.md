@@ -1,6 +1,6 @@
 # MeetDolff — Testing
 
-> Last full run: **2026-11-21**, v0.2.0. Every number below was produced by running the command
+> Last full run: **2026-11-21**, v0.3.0. Every number below was produced by running the command
 > in this workspace, not carried over from an earlier pass.
 
 ## Strategy (Armory: TDD + Web App Testing + Systematic Debugging)
@@ -65,7 +65,10 @@ headless mode for CI without a display server.
 | 21 | **Selection is visible and correct** | ✅ Automated (new) | `aria-current` on the row, detail pane switches, pane is hidden rather than dead space on narrow viewports |
 | 22 | **AI acts on the selected meeting** | ✅ Automated (new) | Fake provider receives the *older* meeting's text; the newer meeting's summary is unchanged |
 | 23 | **Popup consent is explicit** | ✅ Automated (new) | Names the capture target, exactly one start control, three source options, no developer-doc references |
-| 24 | **Accessibility (WCAG 2.1 A/AA)** | ✅ Automated (new) | axe-core: 0 violations on popup / side panel / dashboard / dashboard-detail / settings; 0 structural issues (duplicate ids, unnamed controls, heading order, landmarks) |
+| 24 | **Accessibility (WCAG 2.1 A/AA)** | ✅ Automated | axe-core: 0 violations on 7 audited surfaces — popup / side panel / dashboard / dashboard-detail / **dashboard-empty** / **dashboard-search-miss** / settings; 0 structural issues (duplicate ids, unnamed controls, heading order, landmarks) |
+| 25 | **Notes survive a live recording** | ✅ Automated (new) | Start a fake-mic recording → type in the side panel → stop. The saved meeting carries the exact notes; the draft slot is consumed; the panel switches to editing the saved meeting |
+| 26 | **Notes merge uses both sources** | ✅ Automated (new) | Fake provider receives the user's notes *and* the transcript; merged output renders; raw notes are preserved; editing the notes afterwards flags the merge stale |
+| 27 | **A plan is readable before approval** | ✅ Automated (new) | Objectives/tasks/milestones/dependencies/risks are all reachable before Approve; the approval persists |
 
 ## Actual verification run — 2026-11-21
 
@@ -74,15 +77,35 @@ Environment: Node 20.20.2, Chromium 159.0.8154.6 via Playwright 1.65.1, new head
 
 - `npm run typecheck` — **clean**.
 - `npm run lint` — **clean** (ESLint flat config, 0 errors, 0 warnings).
-- `npm test` — **10 files, 78 tests passed** (was 63; +15 formatter tests).
+- `npm test` — **12 files, 102 tests passed** (63 → 78 → 102).
+- `npm run test:e2e` — **16 Playwright scenarios passed** against a real Chromium with the unpacked MV3 build (7 → 12 → 15 → 16).
 - `npm run build` — **passed**; Vite produced a packaged MV3 extension with root `manifest.json`,
   `background.js`, and all five pages.
-- `MEETDOLFF_HEADLESS=1 npm run test:e2e` — **12 passed** (was 7). New: onboarding, formatter
-  regression, selection/aria-current, target-scoped summarization, popup consent.
-- `npm run audit:a11y` — **0 violations, 0 structural issues** on five surfaces.
+- `MEETDOLFF_HEADLESS=1 npm run test:e2e` — **15 passed** (7 → 12 → 15). New in v0.3: notes typed
+  during a live recording attach to the meeting that recording produces; notes merge sends both the
+  user's notes and the transcript and preserves the originals; a project plan must be readable before
+  it can be approved.
+- `npm run audit:a11y` — **0 violations, 0 structural issues** on seven audited surfaces (the two
+  zero-result dashboard states were added after the cross-version probe caught a defect there).
 - `npm audit` — no production dependency was added this pass; `axe-core` is dev-only.
 
-### Defects found *by* these tests, then fixed
+### Defects found *by* these tests, then fixed (v0.3)
+4. The stale-merge warning was hidden while the "Show as written" toggle was active, so editing notes
+   could leave a stale merged view with no warning. The banner now renders in both views.
+5. The dashboard hero printed raw Markdown (`##`, `**`) for merged notes — it was still using
+   `textContent`. Now rendered through the safe Markdown path with a fade-out clamp.
+6. `.notes-body--bare` lost the cascade to `.notes-body` (equal specificity, earlier in source), so
+   the hero kept a stray left border. Fixed with a compound selector.
+7. Found by the **cross-version behaviour probe** (not by our own suite, because no audit ran against
+   a *zero-result* dashboard): `#meetingList` kept `role="list"` while rendering a plain empty-state
+   message, which axe-core flags as `aria-required-children` (critical) — a screen reader is told a
+   list exists with no items. The role is now toggled only while real rows exist, `dashboard-empty`
+   and `dashboard-search-miss` are audited surfaces, and an e2e test asserts the toggle.
+8. Also from the probe: the follow-up calendar printed the design-token name as the colour of an
+   event ("Accent", "Ink", "Paper", "Muted"). Users pick a colour, not a token, so both the row meta
+   and the picker now say Dark / Grey / Light / White. Covered by an e2e test.
+
+### Defects found *by* these tests, then fixed (v0.2)
 1. `[hidden]` had no effect on `.hero` (`display: grid` beat the UA rule) — regions that were
    supposed to be hidden rendered. Fixed globally with `[hidden] { display: none !important; }`.
 2. `formatDuration(3599)` returned `"60 min"` — minutes were rounded independently of hours.

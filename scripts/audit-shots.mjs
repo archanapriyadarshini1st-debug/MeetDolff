@@ -48,6 +48,11 @@ const meetings = [
     openQuestions: ['Does a second close change the valuation?'],
     commitments: ['Hiring capped at two engineers through Q1'],
     project: null,
+    notes: 'northline lead 1.8M extension\nrunway 11mo -> need 18\ndecision: term sheet by friday\nhold eng hiring at 2',
+    notesEnhanced:
+      '## Northline Ventures · Series A extension\n\n- Northline is prepared to **lead a $1.8M seed extension**.\n- Runway today is **11 months** at current burn; Northline wants **18**.\n- Condition for the term sheet: hold engineering hiring at **two** instead of five.\n- Decision: move to a term sheet **by Friday**.\n\n### From the transcript\n- Priya asked whether 18 months is reachable without a second close.\n- Dev owns drafting the term sheet.',
+    notesMergedAt: iso(2 * day - 40 * min),
+    notesStale: false,
     audioSource: 'tab',
     audioMime: null,
     hasAudio: false,
@@ -113,6 +118,24 @@ const meetings = [
   },
 ];
 
+const plans = [
+  {
+    id: 'p1',
+    meetingId: 'mk1',
+    title: 'Close the Northline seed extension',
+    objectives: ['Reach 18 months of runway without a second close', 'Sign a term sheet by Friday'],
+    tasks: [
+      { text: 'Send updated runway model with the 2-engineer plan', owner: 'Archana', deadline: 'Thursday' },
+      { text: 'Draft term sheet', owner: 'Dev Raman', deadline: 'Friday' },
+    ],
+    milestones: [{ text: 'Term sheet signed', date: '2026-11-27' }],
+    dependencies: ['Board consent for the hiring cap'],
+    risks: ['A second close changes the valuation', 'Holding hiring at two slows the dashboard rewrite'],
+    approved: false,
+    createdAt: iso(2 * day),
+  },
+];
+
 const calendar = [
   { id: 'c1', title: 'Northline follow-up', startsAt: iso(-1 * day), endsAt: iso(-1 * day - 30 * min), color: 'accent', notes: '', meetingId: 'mk1', createdAt: iso(day * 2), updatedAt: iso(day * 2) },
   { id: 'c2', title: 'Product review', startsAt: iso(-3 * day), endsAt: iso(-3 * day - 30 * min), color: 'paper', notes: '', meetingId: 'mk2', createdAt: iso(day * 4), updatedAt: iso(day * 4) },
@@ -139,22 +162,23 @@ console.log('extension id', id);
 
 const seed = await browser.newPage();
 await seed.goto(`chrome-extension://${id}/dashboard.html`);
-await seed.evaluate(async ({ meetings, calendar }) => {
+await seed.evaluate(async ({ meetings, calendar, plans }) => {
   const req = indexedDB.open('meetdolff');
   await new Promise((res) => (req.onsuccess = res));
   const db = req.result;
-  const tx = db.transaction(['meetings', 'calendar'], 'readwrite');
+  const tx = db.transaction(['meetings', 'calendar', 'projects'], 'readwrite');
   for (const m of meetings) tx.objectStore('meetings').put(m);
   for (const c of calendar) tx.objectStore('calendar').put(c);
+  for (const p of plans) tx.objectStore('projects').put(p);
   await new Promise((res) => (tx.oncomplete = res));
-}, { meetings, calendar });
+}, { meetings, calendar, plans });
 await seed.close();
 
 const shots = [
   { path: 'popup.html', file: 'popup', w: 380, h: 560 },
   { path: 'sidepanel.html', file: 'sidepanel', w: 400, h: 1200 },
   { path: 'dashboard.html', file: 'dashboard', w: 1180, h: 1400 },
-  { path: 'dashboard.html', file: 'dashboard-narrow', w: 620, h: 1400 },
+  { path: 'dashboard.html', file: 'dashboard-narrow', w: 620, h: 1600 },
   { path: 'settings.html', file: 'settings', w: 900, h: 1400 },
 ];
 

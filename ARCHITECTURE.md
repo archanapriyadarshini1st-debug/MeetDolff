@@ -40,6 +40,23 @@
   time ranges. UI code must not format machine values itself; `2460s` and `1 decisions` reaching a
   screen is a bug, and `tests/unit/format.test.ts` plus the e2e formatter test both guard it.
 
+### Notes flow (v0.3)
+```
+Side panel (recording)                service worker                     IndexedDB
+  type ──▶ liveNotes{sessionId,text} ──▶ handleRecordingStopped
+            (chrome.storage.local,        ├─ notesForSession(live, sessionId)
+             debounced 500ms)             ├─ meeting.notes = text (if it matches)
+                                          ├─ clearLiveNotes()
+                                          └─ putMeeting(...)  ──────────▶ meetings
+Side panel (saved meeting)
+  edit ──▶ applyNotes()      ──▶ putMeeting (sets notesStale if a merge exists)
+  merge ─▶ notesMergePrompt(notes, transcriptText, summary)
+          ──▶ provider.chat(NOTES_MERGE_SYSTEM, …)
+          ──▶ applyNotesMerge() ──▶ putMeeting (notesEnhanced, notesMergedAt)
+```
+`notes` (the user's own words) and `notesEnhanced` (the model's rewrite) are separate fields and are
+never collapsed. A merge is advisory: it can be stale-flagged, toggled off, or ignored.
+
 ### Interaction contract (v0.2)
 - Every AI action is **targeted**: the side panel keeps an explicit `Acting on <meetingId>` and
   disables an action (with a reason) when the target lacks a transcript or audio. There is no

@@ -68,6 +68,17 @@ export interface Meeting {
   hasAudio: boolean;
   /** Schema version for this record */
   memoryVersion: number;
+  /**
+   * The user's own rough notes, typed during or after the meeting.
+   * Notes-first: this is the artifact the user cares about; the transcript is evidence.
+   */
+  notes?: string;
+  /** The user's notes rewritten against the transcript (Markdown). Null until merged. */
+  notesEnhanced?: string | null;
+  /** ISO time of the last successful notes merge. */
+  notesMergedAt?: string | null;
+  /** True when the raw notes changed after the enhanced version was generated. */
+  notesStale?: boolean;
   /** True when the transcript was edited after the summary was generated */
   summaryStale?: boolean;
   /** ISO time of the most recent user transcript correction */

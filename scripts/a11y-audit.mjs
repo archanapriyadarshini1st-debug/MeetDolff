@@ -132,15 +132,32 @@ const pages = [
   { path: 'sidepanel.html', name: 'sidepanel', w: 400, h: 1100 },
   { path: 'dashboard.html', name: 'dashboard', w: 1180, h: 1200 },
   { path: 'dashboard.html', name: 'dashboard-detail', w: 1180, h: 1200, click: '#meetingList .row' },
+  // Empty and no-match states render no list items, so they get their own audit pass.
+  { path: 'dashboard.html', name: 'dashboard-empty', w: 1180, h: 1200, seed: [] },
+  { path: 'dashboard.html', name: 'dashboard-search-miss', w: 1180, h: 1200, search: 'zzzz-no-such-meeting' },
   { path: 'settings.html', name: 'settings', w: 900, h: 1200 },
+];
+
+async function reseed(rows) {
+  const s = await browser.newPage();
+  await s.goto(`chrome-extension://${id}/dashboard.html`);
+  await seed(s, rows);
+  await s.close();
+}
+
+const MEETINGS = [
+  meeting('a', 'Series A investor call — Northline Ventures', 2 * 24 * 60 * min),
+  meeting('b', 'Weekly product review', 4 * 24 * 60 * min),
 ];
 
 let total = 0;
 for (const p of pages) {
+  await reseed(p.seed !== undefined ? p.seed : MEETINGS);
   const page = await browser.newPage();
   await page.setViewportSize({ width: p.w, height: p.h });
   await page.goto(`chrome-extension://${id}/${p.path}`);
   if (p.click) await page.locator(p.click).first().click();
+  if (p.search) await page.locator('#searchInput').fill(p.search);
   await page.waitForTimeout(600);
 
   const structuralIssues = await page.evaluate(structural);

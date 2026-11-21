@@ -18,7 +18,31 @@
 
       <div id="errorBox" role="status" aria-live="polite" style="margin-bottom: var(--s3)"></div>
 
-      <!-- Ask: the primary job of this panel -->
+      <!-- Notes first: the user's own words are the artifact; the transcript is evidence. -->
+      <section aria-labelledby="notesTitle">
+        <div class="section-head" style="margin-bottom: var(--s2)">
+          <h2 class="section-title" id="notesTitle">Your notes</h2>
+          <span id="notesState" class="tag">…</span>
+        </div>
+        <textarea
+          id="notesInput"
+          class="input notes-input"
+          rows="6"
+          spellcheck="true"
+          placeholder="Type what matters while the call runs — names, numbers, the thing you promised. Merge with the transcript afterwards."
+          aria-describedby="notesHint"
+        ></textarea>
+        <div class="toolbar" style="margin: var(--s2) 0 0">
+          <button id="btnMergeNotes" class="btn btn-sm btn-primary" disabled>Merge with transcript</button>
+          <button id="btnShowRaw" class="btn btn-sm btn-ghost" hidden>Show as written</button>
+          <span id="notesHint" class="small faint" aria-live="polite"></span>
+        </div>
+        <div id="notesOut" hidden style="margin-top: var(--s3)"></div>
+      </section>
+
+      <hr />
+
+      <!-- Ask: cross-meeting recall -->
       <section aria-labelledby="askTitle">
         <h2 class="section-title" id="askTitle" style="margin-bottom: var(--s3)">Chat with memory</h2>
         <div id="chatLog" class="chat-log" aria-live="polite"></div>

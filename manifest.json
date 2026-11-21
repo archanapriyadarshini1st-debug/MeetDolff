@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MeetDolff",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AI meeting companion — record, transcribe, remember. Local-first memory with provider-independent AI.",
   "minimum_chrome_version": "116",
   "permissions": ["tabCapture", "offscreen", "storage", "sidePanel", "activeTab"],

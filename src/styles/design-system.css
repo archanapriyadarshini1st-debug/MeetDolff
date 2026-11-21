@@ -520,8 +520,38 @@ input[type="text"].input, input[type="url"].input, input[type="search"].input, i
   margin: 0 0 var(--s2); line-height: 1.25;
 }
 .hero__summary { margin: 0; color: var(--muted); font-size: var(--t-body); max-width: 62ch; white-space: pre-line; }
+.hero__notes {
+  max-height: 15em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent);
+  mask-image: linear-gradient(180deg, #000 78%, transparent);
+}
+/* Compound selector so it beats .notes-body regardless of source order. */
+.notes-body.notes-body--bare {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  max-height: none;
+  overflow: visible;
+}
 .hero__aside { border-left: 1px solid var(--border); padding-left: var(--s5); }
-@media (max-width: 860px) { .hero__aside { border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: var(--s4); } }
+@media (max-width: 860px) { .hero__notes {
+  max-height: 15em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent);
+  mask-image: linear-gradient(180deg, #000 78%, transparent);
+}
+/* Compound selector so it beats .notes-body regardless of source order. */
+.notes-body.notes-body--bare {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  max-height: none;
+  overflow: visible;
+}
+.hero__aside { border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: var(--s4); } }
 .hero__meta {
   display: flex; flex-wrap: wrap; gap: 0 var(--s2);
   margin: var(--s3) 0 0; font-size: var(--t-meta); color: var(--faint);
@@ -701,3 +731,90 @@ mark { background: #fff; color: #000; padding: 0 2px; border-radius: 2px; }
   border-radius: var(--radius-sm); padding: var(--s3);
 }
 .artifact h3 { margin: 0 0 var(--s2); font-size: var(--t-h3); }
+
+/* ------------------------------------------------------------------ notes (notes-first capture) */
+.notes-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--s3);
+  min-height: 108px;
+  resize: vertical;
+  line-height: 1.55;
+  font-size: 13.5px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.notes-input::placeholder { color: var(--faint); }
+.notes-input:focus {
+  border-color: var(--border-focus);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 245, 245, 0.1);
+}
+.notes-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.notes-body p { margin: 0 0 var(--s2); }
+.notes-body > :last-child { margin-bottom: 0; }
+.notes-body .notes-h {
+  font-weight: 650;
+  font-size: var(--t-lead);
+  letter-spacing: -0.01em;
+  margin: var(--s3) 0 var(--s2);
+}
+.notes-body .notes-h[data-level="1"] { font-family: var(--font-serif); font-size: 17px; margin-top: 0; }
+.notes-body .notes-h[data-level="2"] { font-size: var(--t-h3); }
+.notes-body .notes-h[data-level="3"] {
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.notes-body .notes-list { margin: 0 0 var(--s2); padding-left: var(--s5); }
+.notes-body .notes-list li { margin-bottom: 3px; }
+.notes-body strong { font-weight: 650; color: #fff; }
+
+.notes-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--paper);
+  border-radius: var(--radius-sm);
+  padding: var(--s3);
+  max-height: 46vh;
+  overflow: auto;
+}
+
+/* Rendered notes container (side panel and dashboard share it) */
+.notes-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--paper);
+  border-radius: var(--radius-sm);
+  padding: var(--s3);
+  max-height: 46vh;
+  overflow: auto;
+}
+
+/* Dashboard rendering of notes */
+.detail .notes-block {
+  white-space: pre-wrap;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.detail .notes-block--merged {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--paper);
+  border-radius: var(--radius-sm);
+  padding: var(--s3);
+}
