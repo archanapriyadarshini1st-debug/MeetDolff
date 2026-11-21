@@ -22,6 +22,25 @@ export default tseslint.config(
     },
   },
   {
+    // Audit harnesses are plain Node ESM that also evaluate snippets inside the page.
+    files: ['scripts/audit-shots.mjs', 'scripts/a11y-audit.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+        indexedDB: 'readonly',
+        document: 'readonly',
+        window: 'readonly',
+        Blob: 'readonly',
+        TextDecoder: 'readonly',
+      },
+    },
+  },
+  {
     // Companion is plain Node ESM (no build step): declare Node globals explicitly.
     files: ['companion/**/*.mjs'],
     languageOptions: {

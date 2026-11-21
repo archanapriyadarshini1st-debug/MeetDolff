@@ -1,6 +1,6 @@
 {
   "name": "meetdolff",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "MeetDolff — AI meeting companion Chrome extension. Local-first memory, provider-independent AI, portable meeting memory files.",
@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "audit:shots": "node scripts/audit-shots.mjs audit-shots",
+    "audit:a11y": "node scripts/a11y-audit.mjs"
   },
   "dependencies": {
     "idb": "^8.0.0"
@@ -22,6 +24,7 @@
     "@playwright/test": "^1.49.0",
     "@types/chrome": "^0.0.280",
     "@types/node": "^26.6.6",
+    "axe-core": "^4.14.1",
     "eslint": "^10.15.0",
     "fake-indexeddb": "^6.2.8",
     "typescript": "^5.7.0",

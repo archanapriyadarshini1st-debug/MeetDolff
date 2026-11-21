@@ -36,6 +36,19 @@
 - `src/dashboard/` — search, detail, calendar, projects, export.
 - `src/settings/` — BYOK, folder picker, wipe.
 - `src/lib/` — domain logic, no UI: `db`, `search`, `memory-files`, `audio`, `transcription`, `ai`, `calendar`, `projects`, `artifacts`, `mcp`.
+- `src/lib/utils/format.ts` — the presentation boundary: durations, pluralization, relative dates and
+  time ranges. UI code must not format machine values itself; `2460s` and `1 decisions` reaching a
+  screen is a bug, and `tests/unit/format.test.ts` plus the e2e formatter test both guard it.
+
+### Interaction contract (v0.2)
+- Every AI action is **targeted**: the side panel keeps an explicit `Acting on <meetingId>` and
+  disables an action (with a reason) when the target lacks a transcript or audio. There is no
+  implicit "latest" path in the UI layer.
+- Full-page surfaces share an app bar with `aria-current`; the dashboard is master/detail, with
+  `aria-current` on the selected row and a sticky detail pane that becomes a stacked pane and
+  auto-hides while idle below the split breakpoint.
+- First run is a state, not a special case: with zero meetings the dashboard renders a setup
+  checklist derived from real provider + meeting state.
 
 Build: Vite multi-page (popup/sidepanel/dashboard/settings/offscreen HTML + `background.js`). TypeScript strict. No framework — vanilla TS keeps the bundle small and testable.
 
@@ -64,7 +77,7 @@ Provider-independent interface (`TranscriptionProvider.transcribe(blob) → { se
 
 - **Web Speech API** (`webkitSpeechRecognition`): live mic, interim+final, no key, offline-capable in Chrome. `transcribe(blob)` throws with guidance (it cannot process blobs). No diarization.
 - **Cloud Whisper** (OpenAI-compatible `POST /audio/transcriptions`, `verbose_json`): processes recorded blobs, returns timestamped segments. No diarization (Whisper basic). Future: Faster-Whisper / Whisper.cpp local, diarization providers (Pyannote, etc.) as separate adapters.
-- **Workflow:** Side Panel → **Transcribe latest** sends the saved Blob through the configured Cloud adapter. If Cloud transcription + a chat key are configured, the service worker also attempts post-stop transcription and structured extraction; a failure never deletes the saved meeting. Web Speech remains a live-only adapter.
+- **Workflow:** Side Panel → **Transcribe audio** (on the selected meeting) sends the saved Blob through the configured Cloud adapter. If Cloud transcription + a chat key are configured, the service worker also attempts post-stop transcription and structured extraction; a failure never deletes the saved meeting. Web Speech remains a live-only adapter.
 - **Editing:** transcript segments are visible with timestamps; inline edit UI is planned (data model already supports it).
 
 ## 5. Memory engine

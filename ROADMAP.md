@@ -33,12 +33,54 @@
 - ✅ Opt-in real-time question suggestions (side panel; paced; parser rejects non-questions/duplicates). Requires Web Speech live captions (mic / tab+mic).
 - ✅ Local MCP companion (`companion/`): stdio + loopback HTTP, scoped revocable tokens, rate limits, propose-only writes.
 
-## Next up (priority order, updated)
-1. Diarization adapter (Pyannote / cloud) — transcript editor already supports manual speaker labels.
-2. Per-operation model selection + streaming chat.
-3. Faster-Whisper / whisper.cpp local transcription adapter (the OpenAI-compatible adapter already works against a local server; needs UI preset + docs).
-4. Companion: write `index.json` freshness check, calendar export, auto-export of every meeting to the memory folder.
-5. Audio summaries (TTS), slides export, native companion spike (system audio).
+## Delivered 2026-11-21 (v0.2.0 — product pass; see `PRODUCT-REVIEW.md`)
+- ✅ **Explicit AI target.** Side panel gained an `Acting on …` selector + fact line + disabled-with-reason
+  buttons. Every AI action used to run silently against "whatever is newest". Regression-tested.
+- ✅ **First run.** Three-step setup checklist replaces "No meetings match." on empty memory, driven by
+  real state and hidden once a meeting exists.
+- ✅ **Latest-meeting recap** on the dashboard — summary + open action items + facts, above the fold.
+- ✅ **Popup consent.** One segmented source control + one start button (was: two buttons and a select
+  that could disagree); names the tab it will capture and flags a detected meeting URL; recap after save.
+- ✅ **Honest copy.** Settings no longer claims keys live in `chrome.storage.local` (they are in the
+  encrypted IndexedDB vault); adapter-specific fields appear only when they apply.
+- ✅ **Presentation layer.** New `src/lib/utils/format.ts` — `2460s` → `41 min`, `1 decisions` →
+  `1 decision`, ISO dates → relative labels, internal colour tokens no longer rendered.
+- ✅ **Design system v2.** Spacing/type scales, app bar with navigation, selection states,
+  master/detail, contrast fix (`--faint` 4.2:1 → 5.4:1), `color-scheme: dark` for native controls,
+  empty/loading/error states rewritten as instructions. No new runtime dependencies.
+- ✅ **Accessibility gate.** `npm run audit:a11y` — 0 axe-core violations (WCAG 2.1 A/AA) and 0
+  structural issues across five surfaces.
+- ✅ Visual harness (`npm run audit:shots`) and e2e grown 7 → 12 scenarios, unit 63 → 78.
+
+## Next up (priority order, updated 2026-11-21)
+
+**P0 — the product gap, not polish**
+1. **Notes-merge loop.** Let the user type rough notes during a call and have the AI enhance *their*
+   notes against the transcript. This is Granola's retention mechanism (its $1.5B valuation and
+   near-zero churn come from notes-first artifacts, not better transcripts) and it is the largest
+   remaining gap here. Needs a notes store on the meeting record plus a notes-aware prompt.
+2. **In-call recording indicator.** The REC badge lives only on the toolbar icon; every competitor
+   shows live capture in the call. Needs a content-script overlay and a deliberate decision about
+   host permissions — worth doing carefully rather than quickly.
+
+**P1 — capability**
+3. Diarization adapter (Pyannote / cloud) — the transcript editor already supports manual speaker labels.
+4. Per-operation model selection + streaming chat.
+5. Faster-Whisper / whisper.cpp local transcription adapter (the OpenAI-compatible adapter already
+   works against a local server; needs a UI preset and docs, not new code).
+6. Recurring meeting series — group "the weekly product review" into one thread so "what changed
+   since last week" becomes answerable.
+
+**P2 — integrity & polish**
+7. Companion: `index.json` freshness check, calendar export, auto-export of every meeting.
+8. Bulk export round-trip test — the anti-lock-in claim deserves proof, not a promise.
+9. Audio summaries (TTS), slides export, native companion spike (system audio).
+
+### Demoted, with reasons
+- **Flashcards / quiz / mind-map artifacts** — deterministic filler that competed with chat for the
+  side panel's prime space. Now behind a disclosure; not to be expanded.
+- **Webwright / agent-browser harnesses** — Playwright already gives deterministic, repeatable
+  assertions against a local MV3 extension; an open-ended browser agent adds variance, not signal.
 
 ## Previous queue (kept for history)
 1. Inline transcript editing + re-summarize.
