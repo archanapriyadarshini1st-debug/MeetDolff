@@ -8,41 +8,51 @@
   </head>
   <body>
     <div class="popup-wrap">
-      <p class="md-eyebrow">MeetDolff</p>
+      <p class="md-eyebrow" style="margin-bottom: var(--s1)">MeetDolff</p>
       <h1 class="md-title">Record &amp; remember</h1>
-      <p class="md-sub small">Explicit recording only. Tab audio + optional mic. Local-first memory.</p>
+      <p class="md-sub small">Nothing is captured until you press start. Audio stays on this device until you export it.</p>
 
-      <div style="margin-top:12px">
-        <span id="statusBadge" class="badge"><span class="dot"></span><span id="statusText">Idle</span></span>
-        <span id="timer" class="timer" style="margin-left:10px">00:00</span>
+      <!-- What am I about to capture? The single most important fact in a recorder. -->
+      <div class="popup-context">
+        <span class="popup-context__label">Capturing</span>
+        <span class="popup-context__value" id="tabLabel">Checking the active tab…</span>
       </div>
 
+      <div class="popup-status">
+        <span id="statusBadge" class="badge"><span class="dot"></span><span id="statusText">Idle</span></span>
+        <span id="timer" class="timer">00:00</span>
+      </div>
+
+      <div id="errorBox" style="margin-top: var(--s3)"></div>
+
+      <div class="segmented segmented--block" role="group" aria-label="Audio source" id="sourceGroup">
+        <button type="button" data-source="tab" aria-pressed="true">Tab</button>
+        <button type="button" data-source="mic" aria-pressed="false">Mic</button>
+        <button type="button" data-source="tab+mic" aria-pressed="false">Tab + mic</button>
+      </div>
+      <p class="small faint" id="sourceHint" style="margin: var(--s2) 0 0">Records the meeting tab's audio only.</p>
+
       <div class="rec-controls">
-        <button id="btnStartTab" class="btn btn-primary">● Record tab</button>
-        <button id="btnStartMic" class="btn">Record mic</button>
+        <button id="btnStart" class="btn btn-primary" style="flex: 1">● Start recording</button>
         <button id="btnPause" class="btn" disabled>Pause</button>
         <button id="btnStop" class="btn btn-danger" disabled>Stop</button>
       </div>
 
-      <div class="field">
-        <label for="audioSource">Audio source</label>
-        <select id="audioSource">
-          <option value="tab">Tab audio only</option>
-          <option value="mic">Microphone only</option>
-          <option value="tab+mic">Tab + mic</option>
-        </select>
+      <div id="recap" class="popup-recap" hidden>
+        <p class="popup-recap__title" id="recapTitle"></p>
+        <p class="popup-recap__meta" id="recapMeta"></p>
+        <button id="btnOpenNotes" class="btn btn-sm btn-primary" style="margin-top: var(--s2)">Open notes</button>
       </div>
 
-      <div id="errorBox"></div>
-
-      <div style="display:flex; gap:8px; margin-top:10px">
-        <button id="btnOpenSide" class="btn btn-sm">Open side panel</button>
-        <button id="btnOpenDash" class="btn btn-sm">Dashboard</button>
-        <button id="btnOpenSettings" class="btn btn-sm btn-ghost">Settings</button>
+      <div class="popup-foot">
+        <button id="btnOpenSide" class="btn btn-sm btn-ghost" style="flex: 1">Side panel</button>
+        <button id="btnOpenDash" class="btn btn-sm btn-ghost" style="flex: 1">Dashboard</button>
+        <button id="btnOpenSettings" class="btn btn-sm btn-ghost" style="flex: 1">Settings</button>
       </div>
 
-      <p class="muted small" style="margin-top:12px">
-        Chrome can only capture browser-tab audio. Native apps (Zoom desktop, etc.) need a companion — see ARCHITECTURE.md.
+      <p class="small faint" style="margin: var(--s3) 0 0">
+        Chrome can only capture audio from a browser tab. Desktop apps (Zoom or Teams installed on your machine)
+        need a different build — see <a href="./settings.html">Settings</a>.
       </p>
     </div>
     <script type="module" src="./popup.ts"></script>

@@ -77,7 +77,10 @@ test.describe('MeetDolff extension', () => {
       const id = await extensionId(context);
       const page = await context.newPage();
       await page.goto(`chrome-extension://${id}/popup.html`);
-      await page.locator('#btnStartMic').click();
+      // One control for the source, one action to start it.
+      await page.locator('#sourceGroup button[data-source="mic"]').click();
+      await expect(page.locator('#sourceGroup button[data-source="mic"]')).toHaveAttribute('aria-pressed', 'true');
+      await page.locator('#btnStart').click();
       await expect(page.locator('#statusText')).toHaveText('Recording', { timeout: 10_000 });
       await page.waitForTimeout(1_200);
       await page.locator('#btnPause').click();
@@ -168,7 +171,7 @@ test.describe('MeetDolff extension', () => {
           }),
       );
       await page.reload();
-      await page.getByText('E2E seeded meeting').click();
+      await page.locator('#meetingList .row', { hasText: 'E2E seeded meeting' }).click();
       await page.getByRole('button', { name: /Edit transcript at 00:03/ }).click();
       await page.getByLabel('Transcript text').fill('we use Postgres');
       await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -267,6 +270,259 @@ test.describe('MeetDolff extension', () => {
     } finally {
       await context.close();
       fake.close();
+    }
+  });
+
+  /* ------------------------------------------------------------------ v0.2 regression suite */
+
+  /** Seeds meetings into the extension's IndexedDB and reloads the page. */
+  async function seedMeetings(page: import('@playwright/test').Page, rows: unknown[]): Promise<void> {
+    await page.evaluate(
+      (items) =>
+        new Promise<void>((resolveSeed, reject) => {
+          const open = indexedDB.open('meetdolff');
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const tx = open.result.transaction(['meetings', 'calendar'], 'readwrite');
+            tx.objectStore('meetings').clear();
+            tx.objectStore('calendar').clear();
+            for (const m of items as object[]) tx.objectStore('meetings').put(m);
+            tx.oncomplete = () => resolveSeed();
+            tx.onerror = () => reject(tx.error);
+          };
+        }),
+      rows,
+    );
+    await page.reload();
+  }
+
+  const meeting = (over: Record<string, unknown>) => ({
+    id: 'm1',
+    title: 'Untitled meeting',
+    startedAt: '2026-11-19T14:00:00.000Z',
+    endedAt: '2026-11-19T14:41:00.000Z',
+    durationSec: 2460,
+    participants: [],
+    transcript: [{ id: 's1', start: 4, end: 9, speaker: null, text: 'we hold hiring at two engineers' }],
+    transcriptText: 'we hold hiring at two engineers',
+    summary: 'Runway extends to 18 months if hiring stays at two engineers.',
+    topics: [],
+    decisions: [{ text: 'Hold hiring at two engineers', evidence: ['s1'] }],
+    actionItems: [{ text: 'Send runway model', owner: 'Archana', deadline: 'Thursday', evidence: ['s1'] }],
+    openQuestions: [],
+    commitments: [],
+    project: null,
+    audioSource: 'tab',
+    audioMime: null,
+    hasAudio: false,
+    memoryVersion: 1,
+    createdAt: '2026-11-19T14:41:00.000Z',
+    updatedAt: '2026-11-19T14:41:00.000Z',
+    ...over,
+  });
+
+  test('first run shows a setup checklist instead of "no meetings match"', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/dashboard.html`);
+      await seedMeetings(page, []);
+
+      const onboarding = page.locator('#onboarding');
+      await expect(onboarding).toBeVisible();
+      await expect(onboarding).toContainText('Get to your first answer');
+      // Steps are individually marked, so progress is legible.
+      await expect(page.locator('#checklist li[data-step="key"]')).toHaveAttribute('data-done', 'false');
+      await expect(page.locator('#checklist li[data-step="record"]')).toHaveAttribute('data-done', 'false');
+      await expect(page.locator('#meetingList')).not.toContainText('No meetings match');
+      await expect(page.locator('#hero')).toBeHidden();
+
+      await seedMeetings(page, [meeting({ id: 'first', title: 'First recorded meeting' })]);
+      await expect(page.locator('#onboarding')).toBeHidden();
+      await expect(page.locator('#hero')).toBeVisible();
+      await expect(page.locator('#hero')).toContainText('First recorded meeting');
+      await page.close();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('durations and plurals are humanized — no raw seconds, no "1 decisions"', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/dashboard.html`);
+      await seedMeetings(page, [meeting({ id: 'fmt', title: 'Formatting check' })]);
+
+      const row = page.locator('#meetingList .row').first();
+      await expect(row).toContainText('41 min');
+      await expect(row).toContainText('1 decision');
+      await expect(row).toContainText('1 action item');
+      await expect(row).not.toContainText('2460s');
+      await expect(row).not.toContainText('1 decisions');
+      await expect(row).not.toContainText('1 segment'); // segment counts are not user-facing
+      // Header stats are pluralized too.
+      await expect(page.locator('#memoryStat')).toContainText('1 meeting');
+      await page.close();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('selecting a meeting is visible, switches the detail pane, and reveals it on narrow screens', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/dashboard.html`);
+      await seedMeetings(page, [
+        meeting({ id: 'a', title: 'Alpha review' }),
+        meeting({ id: 'b', title: 'Beta review', startedAt: '2026-11-18T14:00:00.000Z' }),
+      ]);
+
+      const rows = page.locator('#meetingList .row');
+      await expect(rows).toHaveCount(2);
+      await rows.first().click();
+      await expect(rows.first()).toHaveAttribute('aria-current', 'true');
+      await expect(rows.nth(1)).toHaveAttribute('aria-current', 'false');
+      await expect(page.locator('#detailBox .detail__title')).toHaveText('Alpha review');
+      await expect(page.locator('#detailBox')).toContainText('Hold hiring at two engineers');
+      await expect(page.locator('#detailPanel')).toHaveAttribute('data-idle', 'false');
+
+      await rows.nth(1).click();
+      await expect(page.locator('#detailBox .detail__title')).toHaveText('Beta review');
+      await expect(rows.nth(1)).toHaveAttribute('aria-current', 'true');
+      await expect(rows.first()).toHaveAttribute('aria-current', 'false');
+
+      // Below the split breakpoint the detail pane must not sit hidden below an empty slot.
+      await page.setViewportSize({ width: 600, height: 900 });
+      await page.locator('#detailBox button[aria-label="Close meeting detail"]').click();
+      await expect(page.locator('#detailPanel')).toBeHidden();
+      await page.close();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('side panel acts on the selected meeting, not silently on the newest one', async () => {
+    const prompts: string[] = [];
+    const fake: Server = createServer((req, res) => {
+      res.setHeader('access-control-allow-origin', '*');
+      res.setHeader('access-control-allow-headers', '*');
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204).end();
+        return;
+      }
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        prompts.push(body);
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    summary: 'Summarized from the targeted meeting.',
+                    topics: ['targeting'],
+                    decisions: [],
+                    actionItems: [],
+                    openQuestions: [],
+                    commitments: [],
+                  }),
+                },
+              },
+            ],
+          }),
+        );
+      });
+    });
+    await new Promise<void>((r) => fake.listen(0, '127.0.0.1', r));
+    const port = (fake.address() as { port: number }).port;
+
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const settings = await context.newPage();
+      await settings.goto(`chrome-extension://${id}/settings.html`);
+      await settings.locator('#baseUrl').fill(`http://127.0.0.1:${port}/v1`);
+      await settings.locator('#apiKey').fill('test-only-key-not-a-real-secret');
+      await settings.locator('#btnSave').click();
+      await expect(settings.locator('#errorBox')).toContainText('Settings saved locally');
+      await settings.close();
+
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/sidepanel.html`);
+      await seedMeetings(page, [
+        meeting({ id: 'newer', title: 'Newer meeting', summary: null, transcriptText: 'we discussed the newer topic' }),
+        meeting({
+          id: 'older',
+          title: 'Older meeting',
+          summary: null,
+          startedAt: '2026-11-10T14:00:00.000Z',
+          transcriptText: 'we discussed the older topic',
+        }),
+      ]);
+
+      const target = page.locator('#targetMeeting');
+      await expect(target).toHaveValue('newer'); // defaults to newest, visibly
+      await expect(target.locator('option')).toHaveCount(2);
+
+      // Explicitly target the OLDER meeting and summarize.
+      await target.selectOption('older');
+      await expect(page.locator('#targetMeta')).toContainText('not summarized');
+      await page.locator('#btnSummarize').click();
+      await expect(page.locator('#artifactBox')).toContainText('Older meeting');
+
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toContain('older topic');
+      expect(prompts[0]).not.toContain('newer topic');
+
+      // ...and only the targeted meeting changed.
+      const stored = await page.evaluate(
+        () =>
+          new Promise<Record<string, string | null>>((resolveRead, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const q = open.result.transaction('meetings').objectStore('meetings').getAll();
+              q.onsuccess = () =>
+                resolveRead(
+                  Object.fromEntries((q.result as { id: string; summary: string | null }[]).map((m) => [m.id, m.summary])),
+                );
+            };
+          }),
+      );
+      expect(stored['older']).toBe('Summarized from the targeted meeting.');
+      expect(stored['newer']).toBeNull();
+      await page.close();
+    } finally {
+      await context.close();
+      fake.close();
+    }
+  });
+
+  test('popup names the tab it will capture and asks for one decision only', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/popup.html`);
+      // Consent is explicit: the popup resolves the active tab instead of leaving "Checking…".
+      await expect(page.locator('#tabLabel')).not.toHaveText('Checking the active tab…', { timeout: 10_000 });
+      // One start control; the source is a segmented preference, not a second button.
+      await expect(page.locator('#btnStart')).toHaveCount(1);
+      await expect(page.locator('#btnStartMic')).toHaveCount(0);
+      await expect(page.locator('#sourceGroup button')).toHaveCount(3);
+      await expect(page.locator('#sourceHint')).toContainText('meeting tab');
+      // Developer-facing doc references must not leak into the recorder UI.
+      await expect(page.locator('body')).not.toContainText('ARCHITECTURE.md');
+      await page.close();
+    } finally {
+      await context.close();
     }
   });
 

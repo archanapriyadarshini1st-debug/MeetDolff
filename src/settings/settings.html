@@ -7,89 +7,160 @@
     <link rel="stylesheet" href="../styles/design-system.css" />
   </head>
   <body>
-    <div class="md-wrap" style="max-width:720px">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="appbar">
+      <a class="appbar__brand" href="./dashboard.html">MeetDolff <span>Settings</span></a>
+      <nav class="appbar__nav" aria-label="Primary">
+        <a class="appbar__link" href="./dashboard.html">Meetings</a>
+        <a class="appbar__link" href="./settings.html" aria-current="page">Settings</a>
+      </nav>
+      <div class="appbar__spacer"></div>
+      <p class="appbar__meta" id="keyStat" aria-live="polite"></p>
+    </header>
+
+    <main id="main" class="md-wrap md-wrap--narrow">
       <header class="md-header">
-        <p class="md-eyebrow">MeetDolff · Settings</p>
-        <h1 class="md-title">Providers &amp; memory</h1>
-        <p class="md-sub">Bring your own API key. Keys stay in <span class="mono">chrome.storage.local</span> — never sync, never logs, never page scripts.</p>
+        <p class="md-eyebrow">Providers &amp; memory</p>
+        <h1 class="md-title">Bring your own model</h1>
+        <p class="md-sub">
+          Your API key is encrypted with AES-GCM under a non-extractable key and kept in a dedicated local vault —
+          not in page storage, never synced, never logged.
+        </p>
       </header>
 
-      <section class="panel">
-        <h2 style="margin:0 0 10px; font-size:16px">AI provider</h2>
+      <div id="errorBox" role="status" aria-live="polite" style="margin-bottom: var(--s4)"></div>
+
+      <section class="panel" aria-labelledby="providerTitle">
+        <div class="section-head">
+          <h2 class="section-title" id="providerTitle">AI provider</h2>
+          <span class="tag" id="keyBadge">No key saved</span>
+        </div>
+
         <div class="field">
           <label for="aiProvider">Chat adapter</label>
           <select id="aiProvider">
-            <option value="openai">OpenAI-compatible (OpenAI, Groq, Ollama…)</option>
+            <option value="openai">OpenAI-compatible (OpenAI, Groq, Together, Ollama…)</option>
             <option value="anthropic">Anthropic Messages</option>
             <option value="gemini">Google Gemini</option>
           </select>
+          <p class="hint">Used for summaries, decisions, actions, project plans and grounded answers.</p>
+        </div>
+
+        <div class="field" id="baseUrlField">
+          <label for="baseUrl">Base URL</label>
+          <input id="baseUrl" class="input" type="url" placeholder="https://api.openai.com/v1" />
+          <p class="hint">Point this at any OpenAI-compatible endpoint, including a local server.</p>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="chatModel">Chat model</label>
+            <input id="chatModel" class="input" type="text" placeholder="gpt-4o-mini" />
+          </div>
+          <div class="field">
+            <label for="apiKey">API key</label>
+            <input id="apiKey" class="input" type="password" autocomplete="off" placeholder="sk-…" />
+            <p class="hint">Leave blank to keep the saved key.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top: var(--s4)" aria-labelledby="transcriptionTitle">
+        <div class="section-head">
+          <h2 class="section-title" id="transcriptionTitle">Transcription</h2>
         </div>
         <div class="field">
-          <label for="baseUrl">OpenAI-compatible base URL</label>
-          <input id="baseUrl" type="url" placeholder="https://api.openai.com/v1" />
-          <p class="hint">Works with OpenAI, Groq, Together, local Ollama/LM Studio, etc.</p>
-        </div>
-        <div class="field">
-          <label for="chatModel">Chat model</label>
-          <input id="chatModel" type="text" placeholder="gpt-4o-mini" />
-        </div>
-        <div class="field">
-          <label for="apiKey">API key</label>
-          <input id="apiKey" type="password" autocomplete="off" placeholder="sk-…" />
-          <p class="hint">Stored locally only. Leave blank to keep the saved key.</p>
-        </div>
-        <div class="field">
-          <label for="transcriptionProvider">Transcription</label>
+          <label for="transcriptionProvider">Engine</label>
           <select id="transcriptionProvider">
-            <option value="web-speech">Web Speech API (local, no key, live mic)</option>
-            <option value="cloud">Cloud Whisper (recorded audio → text)</option>
+            <option value="web-speech">Web Speech — live, local, no key, microphone only</option>
+            <option value="cloud">Cloud Whisper — recorded audio to text, needs a key</option>
           </select>
+          <p class="hint" id="transcriptionHint"></p>
+        </div>
+        <div class="field" id="transcriptionModelField" hidden>
+          <label for="transcriptionModel">Cloud transcription model</label>
+          <input id="transcriptionModel" class="input" type="text" placeholder="whisper-1" />
+          <p class="hint">Sent to the same base URL as your chat adapter when it is OpenAI-compatible.</p>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top: var(--s4)" aria-labelledby="searchTitle">
+        <div class="section-head">
+          <h2 class="section-title" id="searchTitle">Web search</h2>
+          <span class="tag">Optional</span>
         </div>
         <div class="field">
-          <label for="transcriptionModel">Transcription model (cloud)</label>
-          <input id="transcriptionModel" type="text" placeholder="whisper-1" />
-        </div>
-        <div class="field">
-          <label for="searchProvider">Web search for AI</label>
+          <label for="searchProvider">Provider</label>
           <select id="searchProvider">
-            <option value="none">Off</option>
+            <option value="none">Off — answers come from your meetings only</option>
             <option value="tavily">Tavily</option>
             <option value="brave">Brave Search</option>
           </select>
-          <p class="hint">External research is always labeled separately from meeting memory.</p>
+          <p class="hint">External results are always labelled separately from your meeting memory.</p>
         </div>
-        <div class="field">
+        <div class="field" id="searchKeyField" hidden>
           <label for="searchApiKey">Search API key</label>
-          <input id="searchApiKey" type="password" autocomplete="off" placeholder="Optional" />
-        </div>
-        <div class="toolbar">
-          <button id="btnSave" class="btn btn-primary">Save settings</button>
-          <button id="btnTest" class="btn">Test connection</button>
-          <span id="testResult" class="small muted"></span>
+          <input id="searchApiKey" class="input" type="password" autocomplete="off" placeholder="Optional" />
         </div>
       </section>
 
-      <section class="panel" style="margin-top:14px">
-        <h2 style="margin:0 0 10px; font-size:16px">Memory folder</h2>
-        <p class="muted small">Portable memory files (<span class="mono">MeetDolff Memory/index.json + meetings/*.md|json</span>). IndexedDB remains the source of truth; files are exports.</p>
-        <div class="toolbar">
-          <button id="btnPickFolder" class="btn">Choose folder…</button>
-          <button id="btnImport" class="btn">Import .json memory</button>
-          <button id="btnClearFolder" class="btn btn-ghost">Forget folder</button>
-          <span id="folderStatus" class="small muted"></span>
+      <!-- Sticky action bar: saving must never be a scroll hunt. -->
+      <div
+        class="toolbar"
+        style="
+          position: sticky; bottom: 0; z-index: 10;
+          background: color-mix(in srgb, var(--bg) 92%, transparent);
+          backdrop-filter: blur(8px);
+          border-top: 1px solid var(--border);
+          padding: var(--s3) 0; margin: var(--s4) 0 0;
+        "
+      >
+        <button id="btnSave" class="btn btn-primary">Save settings</button>
+        <button id="btnTest" class="btn">Test connection</button>
+        <span id="testResult" class="small muted" aria-live="polite"></span>
+      </div>
+
+      <section class="panel" style="margin-top: var(--s4)" aria-labelledby="memoryTitle">
+        <div class="section-head">
+          <h2 class="section-title" id="memoryTitle">Memory folder</h2>
+        </div>
+        <p class="muted small" style="margin-top: 0">
+          Portable memory files (<span class="mono">MeetDolff Memory/index.json</span> and
+          <span class="mono">meetings/*.md|json</span>). IndexedDB stays the source of truth; files are exports you own.
+        </p>
+        <div class="toolbar" style="margin-bottom: 0">
+          <button id="btnPickFolder" class="btn btn-sm">Choose folder…</button>
+          <button id="btnImport" class="btn btn-sm">Import .json memory</button>
+          <button id="btnClearFolder" class="btn btn-sm btn-ghost">Forget folder</button>
+          <span id="folderStatus" class="small faint"></span>
         </div>
       </section>
 
-      <section class="panel" style="margin-top:14px">
-        <h2 style="margin:0 0 10px; font-size:16px">Data &amp; privacy</h2>
-        <p class="muted small">Meetings, transcripts, and audio live in IndexedDB on this device. Deleting a meeting removes its audio too. No remote code runs in this extension.</p>
-        <div class="toolbar">
-          <button id="btnWipe" class="btn btn-danger">Delete all local data</button>
+      <section class="panel" style="margin-top: var(--s4)" aria-labelledby="privacyTitle">
+        <div class="section-head">
+          <h2 class="section-title" id="privacyTitle">Data &amp; privacy</h2>
+        </div>
+        <p class="muted small" style="margin-top: 0">
+          Meetings, transcripts and audio live in IndexedDB on this device. Deleting a meeting removes its audio too.
+          No remote code runs in this extension. Nothing is uploaded except the model requests you configure above.
+        </p>
+        <div class="toolbar" style="margin-bottom: 0">
+          <button id="btnWipe" class="btn btn-sm btn-danger">Delete all local data</button>
         </div>
       </section>
 
-      <div id="errorBox" style="margin-top:12px"></div>
-    </div>
+      <details class="panel panel--quiet" style="margin-top: var(--s4)">
+        <summary style="cursor: pointer; font-weight: 600; font-size: var(--t-meta)">What this can and cannot capture</summary>
+        <ul class="small muted" style="margin: var(--s3) 0 0; padding-left: var(--s5)">
+          <li><strong>Supported:</strong> any Chrome tab that plays audio — Google Meet, Zoom web, Teams web, a recorded call, a video.</li>
+          <li><strong>Supported:</strong> your microphone, on its own or mixed with tab audio.</li>
+          <li><strong>Not supported:</strong> native desktop apps (Zoom desktop, Teams desktop). Chrome's capture API only sees tabs.</li>
+          <li><strong>Not supported:</strong> speaker diarization. Labels are never guessed — you can correct speakers in the transcript.</li>
+          <li><strong>Local servers:</strong> an Ollama or LM Studio endpoint needs that origin allowed once; Chrome prompts on save.</li>
+        </ul>
+      </details>
+    </main>
     <script type="module" src="./settings.ts"></script>
   </body>
 </html>

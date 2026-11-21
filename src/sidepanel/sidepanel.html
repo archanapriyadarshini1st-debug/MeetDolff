@@ -8,46 +8,88 @@
   </head>
   <body>
     <div class="side-wrap">
-      <p class="md-eyebrow">MeetDolff · Memory</p>
-      <h1 class="md-title">Ask your meetings</h1>
-      <p class="md-sub small">Grounded answers with meeting + timestamp citations. If memory has no answer, it says so.</p>
+      <header style="border-bottom: 1px solid var(--border); padding-bottom: var(--s3); margin-bottom: var(--s4)">
+        <p class="md-eyebrow" style="margin-bottom: var(--s1)">MeetDolff · Memory</p>
+        <h1 class="md-title">Ask your meetings</h1>
+        <p class="md-sub small">
+          Answers cite the meeting and the timestamp. If your memory has no answer, it says so instead of guessing.
+        </p>
+      </header>
 
-      <div class="toolbar">
-        <button id="btnTranscribe" class="btn btn-sm">Transcribe latest</button>
-        <button id="btnSummarize" class="btn btn-sm">Summarize latest</button>
-        <button id="btnProject" class="btn btn-sm">Convert to project</button>
-        <button id="btnReport" class="btn btn-sm">Report</button>
-        <button id="btnFlash" class="btn btn-sm">Flashcards</button>
-        <button id="btnQuiz" class="btn btn-sm">Quiz</button>
-        <button id="btnMindmap" class="btn btn-sm">Mind map</button>
-      </div>
+      <div id="errorBox" role="status" aria-live="polite" style="margin-bottom: var(--s3)"></div>
 
-      <div id="artifactBox"></div>
-
-      <section aria-labelledby="sugTitle" class="sug">
-        <div class="sug-head">
-          <h2 id="sugTitle" style="font-size:15px; margin:18px 0 6px">Questions worth asking</h2>
-          <label class="small"><input type="checkbox" id="sugEnabled" /> Live suggestions</label>
+      <!-- Ask: the primary job of this panel -->
+      <section aria-labelledby="askTitle">
+        <h2 class="section-title" id="askTitle" style="margin-bottom: var(--s3)">Chat with memory</h2>
+        <div id="chatLog" class="chat-log" aria-live="polite"></div>
+        <div class="chat-input">
+          <input id="chatInput" type="text" placeholder="What did we decide about the frontend?" aria-label="Ask about your meetings" />
+          <button id="btnAsk" class="btn btn-primary">Ask</button>
         </div>
-        <p id="sugStatus" class="muted small" aria-live="polite">Off. When on, the last few minutes of live transcript are sent to your AI provider to suggest questions.</p>
-        <div id="sugList" class="sug-list"></div>
-        <button id="btnSuggestNow" class="btn btn-sm">Suggest now</button>
+        <div id="chatExamples" class="toolbar" style="margin: var(--s2) 0 0"></div>
+        <fieldset class="toolbar" style="border: 0; padding: 0; margin: var(--s2) 0 0">
+          <legend class="sr-only">Search scope</legend>
+          <label class="checkbox-row" style="align-items: center">
+            <input type="radio" name="scope" value="all" checked /> All meetings
+          </label>
+          <label class="checkbox-row" style="align-items: center">
+            <input type="radio" name="scope" value="latest" /> Latest only
+          </label>
+        </fieldset>
       </section>
 
-      <h2 style="font-size:15px; margin:18px 0 6px">Chat with memory</h2>
-      <div id="chatLog" class="chat-log" aria-live="polite"></div>
-      <div class="chat-input">
-        <input id="chatInput" type="text" placeholder="e.g. What happened last Tuesday at 7pm?" aria-label="Ask about meetings" />
-        <button id="btnAsk" class="btn btn-primary">Ask</button>
-      </div>
-      <p class="muted small">Scope: <label><input type="radio" name="scope" value="all" checked /> All meetings</label>
-        <label style="margin-left:10px"><input type="radio" name="scope" value="latest" /> Latest only</label>
-      </p>
+      <hr />
 
-      <div id="errorBox" style="margin-top:10px"></div>
+      <!-- Process: which meeting am I acting on? -->
+      <section aria-labelledby="processTitle">
+        <h2 class="section-title" id="processTitle" style="margin-bottom: var(--s2)">Process a meeting</h2>
+        <div class="target">
+          <label class="target__label" for="targetMeeting">Acting on</label>
+          <select id="targetMeeting" aria-label="Meeting these actions apply to"></select>
+        </div>
+        <p id="targetMeta" class="small faint" style="margin: 0 0 var(--s3)"></p>
+        <div class="toolbar" style="margin-top: 0">
+          <button id="btnTranscribe" class="btn btn-sm">Transcribe audio</button>
+          <button id="btnSummarize" class="btn btn-sm btn-primary">Summarize</button>
+          <button id="btnProject" class="btn btn-sm">Convert to project</button>
+        </div>
+      </section>
 
-      <h2 style="font-size:15px; margin:22px 0 6px">Recent meetings</h2>
-      <div id="recentList"></div>
+      <div id="artifactBox" class="artifact" style="margin-top: var(--s3)"></div>
+
+      <!-- Make something: deterministic documents from memory -->
+      <details class="panel panel--quiet" style="margin-top: var(--s4)">
+        <summary style="cursor: pointer; font-weight: 600; font-size: var(--t-meta)">Make something from this meeting</summary>
+        <p class="small faint" style="margin: var(--s2) 0">
+          Built from the saved summary, decisions and actions — no extra model call, no invented content.
+        </p>
+        <div class="toolbar" style="margin-bottom: 0">
+          <button id="btnReport" class="btn btn-sm">Report</button>
+          <button id="btnFlash" class="btn btn-sm">Flashcards</button>
+          <button id="btnQuiz" class="btn btn-sm">Quiz</button>
+          <button id="btnMindmap" class="btn btn-sm">Mind map</button>
+        </div>
+      </details>
+
+      <!-- Live suggestions: opt-in, off by default -->
+      <details class="panel panel--quiet" style="margin-top: var(--s3)" id="sugDetails">
+        <summary style="cursor: pointer; font-weight: 600; font-size: var(--t-meta)">Questions worth asking</summary>
+        <p id="sugStatus" class="small faint" style="margin: var(--s2) 0" aria-live="polite">
+          Off by default. When on, the last few minutes of live transcript are sent to your AI provider to suggest questions.
+        </p>
+        <label class="checkbox-row" style="margin-bottom: var(--s2)">
+          <input type="checkbox" id="sugEnabled" /> Suggest questions while recording
+        </label>
+        <div id="sugList" class="sug-list"></div>
+        <button id="btnSuggestNow" class="btn btn-sm">Suggest now</button>
+      </details>
+
+      <hr />
+
+      <section aria-labelledby="recentTitle">
+        <h2 class="section-title" id="recentTitle">Recent meetings</h2>
+        <div id="recentList"></div>
+      </section>
     </div>
     <script type="module" src="./sidepanel.ts"></script>
   </body>
