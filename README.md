@@ -27,7 +27,7 @@ produces transcripts, it improves *your* notes.
 - A tiny, safe Markdown renderer for merged notes (no `innerHTML`, no injected heading elements, so
   the document outline and the a11y audit stay intact).
 
-Verified: **102 unit tests, 15 browser e2e tests**, 0 axe-core violations. See [`TESTING.md`](TESTING.md).
+Verified: **102 unit tests, 16 browser e2e tests**, 0 axe-core violations. See [`TESTING.md`](TESTING.md).
 
 ---
 

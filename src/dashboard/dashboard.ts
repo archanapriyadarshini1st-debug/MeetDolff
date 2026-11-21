@@ -239,6 +239,15 @@ function renderHero(): void {
 
 /* ------------------------------------------------------------------ list */
 
+/**
+ * `role="list"` requires list-item children. Empty and no-match states render a
+ * plain message, so the role is only present while real rows are.
+ */
+function setListRole(isList: boolean): void {
+  if (isList) meetingList.setAttribute('role', 'list');
+  else meetingList.removeAttribute('role');
+}
+
 function renderMeetings(query: string): void {
   const q = query.trim();
   const results = q
@@ -254,6 +263,7 @@ function renderMeetings(query: string): void {
 
   if (allMeetings.length === 0) {
     meetingList.innerHTML = '';
+    setListRole(false);
     const empty = document.createElement('div');
     empty.className = 'empty';
     empty.style.margin = '0 var(--s4) var(--s4)';
@@ -266,6 +276,7 @@ function renderMeetings(query: string): void {
 
   if (results.length === 0) {
     meetingList.innerHTML = '';
+    setListRole(false);
     const empty = document.createElement('div');
     empty.className = 'empty';
     empty.style.margin = '0 var(--s4) var(--s4)';
@@ -288,6 +299,7 @@ function renderMeetings(query: string): void {
     return;
   }
 
+  setListRole(true);
   meetingList.replaceChildren();
   for (const r of results) {
     const m = r.meeting;
@@ -592,11 +604,13 @@ async function showDetail(id: string): Promise<void> {
 
 /* ------------------------------------------------------------------ calendar */
 
+// The palette is a greyscale ramp; name it the way a user would describe what they see,
+// never by the design token behind it.
 const COLOR_LABEL: Record<CalendarEvent['color'], string> = {
-  ink: 'Ink',
-  paper: 'Paper',
-  accent: 'Accent',
-  muted: 'Muted',
+  ink: 'Dark',
+  paper: 'Light',
+  accent: 'White',
+  muted: 'Grey',
 };
 
 async function refreshCalendar(): Promise<void> {

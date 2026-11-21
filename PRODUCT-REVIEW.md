@@ -125,7 +125,7 @@ Environment: Chromium 159 (Playwright 1.65), Node 20, new headless mode, unpacke
 | Unit | `npm test` | **78 passed** (10 files) — was 63; +15 formatter tests |
 | Build | `npm run build` | packaged MV3, 5 root HTML pages |
 | Browser e2e | `MEETDOLFF_HEADLESS=1 npm run test:e2e` | **12 passed** — was 7 |
-| Accessibility | `npm run audit:a11y` | **0 violations** (axe-core, WCAG 2.1 A/AA) across popup, side panel, dashboard, dashboard-detail, settings; 0 structural issues (duplicate ids, unnamed controls, heading order, landmarks) |
+| Accessibility | `npm run audit:a11y` | **0 violations** (axe-core, WCAG 2.1 A/AA) across 7 surfaces — popup, side panel, dashboard, dashboard-detail, dashboard-empty, dashboard-search-miss, settings; 0 structural issues (duplicate ids, unnamed controls, heading order, landmarks) |
 | Visual | `npm run audit:shots` | screenshots at real surface sizes (380 popup, 400 side panel, 1180 and 620 dashboard) |
 
 New regression tests, each covering a defect above:

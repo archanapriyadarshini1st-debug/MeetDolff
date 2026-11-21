@@ -337,11 +337,59 @@ test.describe('MeetDolff extension', () => {
       await expect(page.locator('#checklist li[data-step="record"]')).toHaveAttribute('data-done', 'false');
       await expect(page.locator('#meetingList')).not.toContainText('No meetings match');
       await expect(page.locator('#hero')).toBeHidden();
+      // An empty state is a message, not a list — role="list" with no list items fails WCAG.
+      await expect(page.locator('#meetingList')).not.toHaveAttribute('role', 'list');
 
       await seedMeetings(page, [meeting({ id: 'first', title: 'First recorded meeting' })]);
+      await expect(page.locator('#meetingList')).toHaveAttribute('role', 'list');
       await expect(page.locator('#onboarding')).toBeHidden();
       await expect(page.locator('#hero')).toBeVisible();
       await expect(page.locator('#hero')).toContainText('First recorded meeting');
+      await page.close();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('calendar follow-ups name their colour the way a user sees it, not the design token', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/dashboard.html`);
+      await seedMeetings(page, [meeting({ id: 'cal-1', title: 'Northline follow-up' })]);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolveSeed, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const tx = open.result.transaction(['calendar'], 'readwrite');
+              tx.objectStore('calendar').clear();
+              tx.objectStore('calendar').put({
+                id: 'e1',
+                title: 'Northline follow-up',
+                startsAt: '2026-11-24T09:30:00.000Z',
+                endsAt: '2026-11-24T10:00:00.000Z',
+                color: 'accent',
+                notes: '',
+                meetingId: 'cal-1',
+                createdAt: '2026-11-21T09:00:00.000Z',
+                updatedAt: '2026-11-21T09:00:00.000Z',
+              });
+              tx.oncomplete = () => resolveSeed();
+              tx.onerror = () => reject(tx.error);
+            };
+          }),
+      );
+      await page.reload();
+      const meta = page.locator('#calendarList .row-meta');
+      await expect(meta).toContainText('White');
+      // The colour picker must not leak token names either.
+      await expect(page.locator('#calColor option[value="accent"]')).toHaveText('White');
+      for (const token of ['Accent', 'Ink', 'Paper', 'Muted']) {
+        await expect(meta).not.toContainText(token);
+      }
       await page.close();
     } finally {
       await context.close();

@@ -68,7 +68,7 @@
   risks in an expandable panel, instead of counts plus a blind Approve button.
 - ✅ **Safe notes rendering** — `src/lib/utils/markdown.ts`: no `innerHTML`, no heading elements
   emitted from model output (keeps the document outline and the a11y audit intact).
-- ✅ 102 unit tests (+24), 15 e2e tests (+3), 0 axe-core violations.
+- ✅ 102 unit tests (+24), 16 e2e tests (+4), 0 axe-core violations across 7 audited surfaces.
 
 ## Next up (priority order, updated 2026-11-21)
 
