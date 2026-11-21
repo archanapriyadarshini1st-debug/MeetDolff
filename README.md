@@ -81,18 +81,39 @@ See `ROADMAP.md` for completed vs. planned, and `TECHNICAL_DECISIONS.md` for why
 
 ---
 
-## Load the unpacked extension
+## Install
 
-1. Build:
-   ```bash
-   npm install
-   npm run build
-   ```
+### Option A — download a release (no Node, no build step)
+
+1. Grab **`meetdolff-<version>-chrome.zip`** from [the latest release](https://github.com/archanapriyadarshini1st-debug/MeetDolff/releases/latest).
+2. Unzip it so that `manifest.json` sits at the top level of the folder.
+3. Open `chrome://extensions` (Chrome, Edge, Brave, Vivaldi, Arc — any Chromium browser), enable **Developer mode**.
+4. **Load unpacked** → pick the unzipped folder.
+5. Pin **MeetDolff** and open **Settings** once to paste an AI provider key.
+
+> MeetDolff is not on the Chrome Web Store yet, so it does not auto-update. To upgrade, unzip a newer
+> release over the old folder and press ⟳ on the extension card — meetings live in IndexedDB under the
+> extension ID, which does not change.
+
+### Option B — build from source (for development)
+
+1. `npm install && npm run build`
 2. Open `chrome://extensions`, enable **Developer mode**.
-3. Click **Load unpacked** → select the `dist/` folder.
+3. **Load unpacked** → select the `dist/` folder.
 4. Pin **MeetDolff**, open a meeting tab (Google Meet / Zoom web / any tab with audio), click the extension → **Record tab**.
 
 > `dist/` contains `manifest.json`, `background.js`, `popup.html`, `sidepanel.html`, `dashboard.html`, `settings.html`, `offscreen.html`, `icons/`.
+
+### Making a release (maintainers)
+
+```bash
+npm run build
+(cd dist && zip -qr ../meetdolff-$(node -p "require('./package.json').version")-chrome.zip . -x "*.map")
+```
+
+Then create a GitHub release from the version tag and attach the zip as a release asset. The zip is
+verified the way a user installs it: it is extracted to a clean folder, loaded unpacked, driven through
+the e2e scenarios and the accessibility audit, and its SHA-256 is published in the release notes.
 
 ## Quick start
 

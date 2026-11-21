@@ -112,6 +112,15 @@ Environment: Node 20.20.2, Chromium 159.0.8154.6 via Playwright 1.65.1, new head
    Fixed by deriving hours from a rounded total-minutes value.
 3. Heading order skipped `h2 → h4` on the dashboard. Fixed by promoting the hero aside heading.
 
+## Release packaging check (v0.3.0)
+
+A release zip is only useful if it installs. Before publishing `v0.3.0` the asset was downloaded from
+the public release URL, hashed (SHA-256 matched the published digest), extracted into an empty folder,
+and loaded into Chromium the way the README tells a stranger to load it. That extracted folder was then
+run through the behaviour probe: 16/16 user-facing checks, 0 axe-core violations, and a real
+record → stop → saved-meeting cycle. The zip is 55 KB, `manifest.json` at the root, no source maps, no
+`node_modules`, no keys.
+
 ## Known limitations (honest)
 
 - Playwright does not prove real `tabCapture` on every meeting platform; that needs an audible tab
