@@ -526,6 +526,219 @@ test.describe('MeetDolff extension', () => {
     }
   });
 
+  /* ------------------------------------------------------- v0.3 notes-first capture */
+
+  test('notes typed during a recording are attached to the meeting that recording produces', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const popup = await context.newPage();
+      await popup.goto(`chrome-extension://${id}/popup.html`);
+      await popup.locator('#sourceGroup button[data-source="mic"]').click();
+      await popup.locator('#btnStart').click();
+      await expect(popup.locator('#statusText')).toHaveText('Recording', { timeout: 10_000 });
+
+      // The panel is opened mid-call and immediately enters live-notes mode.
+      const panel = await context.newPage();
+      await panel.goto(`chrome-extension://${id}/sidepanel.html`);
+      await expect(panel.locator('#notesState')).toHaveText('Recording', { timeout: 10_000 });
+      await expect(panel.locator('#notesInput')).toBeEnabled();
+      await panel.locator('#notesInput').fill('drop-off 40% at step 3\nMeera ships skippable calendar');
+      await panel.waitForTimeout(900); // past the autosave debounce
+
+      const live = await panel.evaluate(
+        () =>
+          new Promise<{ sessionId: string; text: string } | null>((r) => {
+            chrome.storage.local.get('liveNotes').then((v) => r((v['liveNotes'] as never) ?? null));
+          }),
+      );
+      expect(live?.text).toContain('drop-off 40%');
+
+      await popup.waitForTimeout(1_200);
+      await popup.locator('#btnStop').click();
+      await expect(popup.locator('#statusText')).toHaveText('Saved', { timeout: 15_000 });
+      await popup.waitForTimeout(2_000);
+
+      const saved = await panel.evaluate(
+        () =>
+          new Promise<{ notes: string; id: string }[]>((resolveRead, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const q = open.result.transaction('meetings').objectStore('meetings').getAll();
+              q.onsuccess = () => resolveRead(q.result as { notes: string; id: string }[]);
+            };
+          }),
+      );
+      expect(saved).toHaveLength(1);
+      expect(saved[0]!.notes).toBe('drop-off 40% at step 3\nMeera ships skippable calendar');
+
+      // The draft slot is consumed, so the next recording starts clean.
+      const leftover = await panel.evaluate(
+        () => new Promise((r) => chrome.storage.local.get('liveNotes').then((v) => r(v['liveNotes'] ?? null))),
+      );
+      expect(leftover).toBeNull();
+
+      // ...and the panel now edits the saved meeting instead of a draft.
+      await expect(panel.locator('#notesInput')).toHaveValue(/drop-off 40%/);
+      await expect(panel.locator('#notesState')).not.toHaveText('Recording');
+      await panel.close();
+      await popup.close();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('merging notes rewrites them against the transcript and keeps the originals', async () => {
+    const prompts: string[] = [];
+    const merged = '## Onboarding\n- Drop-off is 40% at step three\n- Meera ships skippable calendar next Tuesday\n\n### From the transcript\n- Measured over two weeks\n';
+    const fake: Server = createServer((req, res) => {
+      res.setHeader('access-control-allow-origin', '*');
+      res.setHeader('access-control-allow-headers', '*');
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204).end();
+        return;
+      }
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        prompts.push(body);
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ choices: [{ message: { content: merged } }] }));
+      });
+    });
+    await new Promise<void>((r) => fake.listen(0, '127.0.0.1', r));
+    const port = (fake.address() as { port: number }).port;
+
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const settings = await context.newPage();
+      await settings.goto(`chrome-extension://${id}/settings.html`);
+      await settings.locator('#baseUrl').fill(`http://127.0.0.1:${port}/v1`);
+      await settings.locator('#apiKey').fill('test-only-key-not-a-real-secret');
+      await settings.locator('#btnSave').click();
+      await expect(settings.locator('#errorBox')).toContainText('Settings saved locally');
+      await settings.close();
+
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/sidepanel.html`);
+      await seedMeetings(page, [
+        meeting({
+          id: 'onboard',
+          title: 'Weekly product review',
+          summary: null,
+          transcriptText: 'the drop-off is still forty percent at step three and we ship skippable calendar next tuesday, measured over two weeks',
+          notes: 'drop-off 40% at step 3\nmeera ships skippable cal',
+        }),
+      ]);
+
+      await expect(page.locator('#notesInput')).toHaveValue(/drop-off 40%/);
+      const merge = page.locator('#btnMergeNotes');
+      await expect(merge).toBeEnabled();
+      await merge.click();
+
+      await expect(page.locator('#notesOut')).toContainText('From the transcript');
+      await expect(page.locator('#notesOut')).toContainText('Drop-off is 40% at step three');
+      await expect(page.locator('#notesOut')).toContainText('merged with the transcript');
+      // The user's own words are never lost.
+      await page.locator('#btnShowRaw').click();
+      await expect(page.locator('#notesOut')).toContainText('meera ships skippable cal');
+
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toContain('meera ships skippable cal'); // notes go in
+      expect(prompts[0]).toContain('forty percent at step three'); // so does the transcript
+
+      const stored = await page.evaluate(
+        () =>
+          new Promise<{ notes: string; notesEnhanced: string; notesStale: boolean }>((resolveRead, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const q = open.result.transaction('meetings').objectStore('meetings').get('onboard');
+              q.onsuccess = () => resolveRead(q.result);
+            };
+          }),
+      );
+      expect(stored.notesEnhanced).toContain('From the transcript');
+      expect(stored.notes).toBe('drop-off 40% at step 3\nmeera ships skippable cal');
+      expect(stored.notesStale).toBe(false);
+
+      // Editing the notes afterwards marks the merge as out of date rather than silently stale.
+      await page.locator('#notesInput').fill('drop-off 35% at step 3');
+      await page.waitForTimeout(900);
+      await expect(page.locator('#notesOut')).toContainText('out of date');
+      await page.close();
+    } finally {
+      await context.close();
+      fake.close();
+    }
+  });
+
+  test('a project plan must be readable before it can be approved', async () => {
+    const context = await extensionContext();
+    try {
+      const id = await extensionId(context);
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${id}/dashboard.html`);
+      await seedMeetings(page, [meeting({ id: 'plan-1', title: 'Kickoff' })]);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolveSeed, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const tx = open.result.transaction('projects', 'readwrite');
+              tx.objectStore('projects').put({
+                id: 'proj-1',
+                meetingId: 'plan-1',
+                title: 'Skippable onboarding calendar',
+                objectives: ['Cut step-three drop-off'],
+                tasks: [{ text: 'Make calendar skippable', owner: 'Meera', deadline: 'next Tuesday' }],
+                milestones: [{ text: 'Ship to 50%', date: '2026-11-25' }],
+                dependencies: ['Analytics events'],
+                risks: ['Users never connect a calendar'],
+                approved: false,
+                createdAt: '2026-11-19T14:00:00.000Z',
+              });
+              tx.oncomplete = () => resolveSeed();
+              tx.onerror = () => reject(tx.error);
+            };
+          }),
+      );
+      await page.reload();
+      await page.locator('#meetingList .row').first().click();
+
+      const plan = page.locator('#projectList details').first();
+      await expect(plan).toContainText('Skippable onboarding calendar');
+      await expect(plan).toContainText('Pending approval');
+      // Collapsed by default, but the content exists and is reachable.
+      await plan.locator('summary').click();
+      await expect(plan).toContainText('Cut step-three drop-off');
+      await expect(plan).toContainText('Make calendar skippable');
+      await expect(plan).toContainText('Meera');
+      await expect(plan).toContainText('Users never connect a calendar');
+
+      await plan.getByRole('button', { name: 'Approve this plan' }).click();
+      await expect(page.locator('#projectList details').first()).toContainText('Approved');
+      const approved = await page.evaluate(
+        () =>
+          new Promise<boolean>((resolveRead, reject) => {
+            const open = indexedDB.open('meetdolff');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const q = open.result.transaction('projects').objectStore('projects').get('proj-1');
+              q.onsuccess = () => resolveRead(Boolean(q.result?.approved));
+            };
+          }),
+      );
+      expect(approved).toBe(true);
+      await page.close();
+    } finally {
+      await context.close();
+    }
+  });
+
   test('no real-looking secrets bundled in dist', () => {
     const files: string[] = [];
     const walk = (dir: string) => {

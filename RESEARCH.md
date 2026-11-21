@@ -82,8 +82,12 @@ calm, premium brief. v0.2 added **no dependencies**; `axe-core` is a dev-only te
 **Differentiation (defended, unchanged):** portable, user-owned meeting memory + model
 independence + external agent access + bot-free capture. Not branding or UI copying.
 
-**Differentiation gap identified this pass:** MeetDolff still produces transcripts where the market
-reward goes to *notes-first* artifacts. See `PRODUCT-REVIEW.md` §5, item 1.
+**Differentiation gap identified in the v0.2 pass — closed in v0.3.0:** MeetDolff produced
+transcripts where the market reward goes to *notes-first* artifacts. The side panel now opens with a
+notes box, notes typed during a call are held against the recording session and adopted when the
+meeting is created, and "Merge with transcript" rewrites the user's own notes using the transcript as
+evidence (structure preserved, contradictions flagged, originals always retained). The dashboard
+opens with merged notes rather than an AI summary. See `PRODUCT-REVIEW.md` §6.
 
 ## 3. Technical research (official docs)
 

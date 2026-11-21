@@ -8,6 +8,29 @@ MeetDolff listens to meetings **only with explicit permission**, transcribes the
 
 ---
 
+## What's new in v0.3.0 (2026-11-21)
+
+**Notes first.** The gap the market research pointed at is closed: MeetDolff no longer just
+produces transcripts, it improves *your* notes.
+
+- **Type during the call.** The side panel opens with a notes box. Notes are held against the
+  recording session (the meeting record does not exist yet) and adopted when you stop, so nothing
+  is lost and yesterday's abandoned draft can never be attached to today's recording.
+- **“Merge with transcript.”** Your rough notes are rewritten against the transcript — fragments
+  completed, names and numbers corrected, and a “From the transcript” section appended for what you
+  missed. Your headings, order and phrasing are the skeleton; contradictions are marked, never
+  silently overwritten. **Your original text is always one click away** (“Show as written”).
+- **Notes are the headline artifact.** When notes have been merged, the dashboard opens with them
+  instead of an AI summary.
+- **Plans must be readable before approval.** Project plans used to show only counts and an Approve
+  button; they now open into objectives, tasks, milestones, dependencies and risks.
+- A tiny, safe Markdown renderer for merged notes (no `innerHTML`, no injected heading elements, so
+  the document outline and the a11y audit stay intact).
+
+Verified: **102 unit tests, 15 browser e2e tests**, 0 axe-core violations. See [`TESTING.md`](TESTING.md).
+
+---
+
 ## What's new in v0.2.0 (2026-11-21)
 
 A product-and-quality pass driven by 2026 market evidence — full rationale in
@@ -43,6 +66,7 @@ Verified: 78 unit tests, 12 browser e2e tests, clean typecheck and lint. See [`T
 - **Opt-in web search** — Tavily or Brave Search can be configured separately; external results and URLs are kept distinct from meeting memory.
 - **Dashboard** — meeting history, detail view (transcript with timestamps), calendar (color-coded, linked to meetings), project plans with approval.
 - **Meeting → Project** — converts a meeting into objectives/tasks/milestones/risks (JSON, reviewable, requires approval).
+- **Notes** — your own rough notes per meeting, typed during or after the call, merged against the transcript without losing your wording.
 - **Artifacts** — reports, flashcards, quizzes, mind maps (Mermaid), infographic text — deterministic templates from memory.
 - **MCP-ready** — narrow, read-only-by-default tool schemas for external agents (see `ARCHITECTURE.md`). Writes require explicit approval.
 

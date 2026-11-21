@@ -142,21 +142,36 @@ Bug found by the new tests and fixed: `[hidden]` being overridden by component `
 
 ---
 
+## 5b. v0.3.0 — closing the gap this document identified (2026-11-21)
+
+§5 below argued the largest remaining gap was that MeetDolff produced transcripts where the market
+rewards notes-first artifacts. v0.3.0 closes it.
+
+| | |
+|---|---|
+| **Live notes** | The side panel opens with a notes box. While a call runs there is no meeting record yet, so notes are held against the **recording session id** in `chrome.storage.local`; the service worker adopts them when it creates the meeting and clears the slot. Keying on the session id is what stops a stale draft from a previous abandoned recording being silently attached to a new one — the same class of bug as the v0.2 "silent target". |
+| **Merge** | `NOTES_MERGE_SYSTEM` makes the user's notes the *skeleton*: keep headings, order and phrasing; complete fragments; correct names and numbers from the transcript; append a "From the transcript" section for what they missed; if the transcript contradicts a note, keep the user's text and mark it "(transcript says: …)". Output is Markdown, not JSON — it is a document the user keeps. |
+| **Reversibility** | `notes` and `notesEnhanced` are separate fields. "Show as written" always returns the original. Editing the notes after a merge sets `notesStale` and shows a banner, mirroring the existing `summaryStale` behaviour for transcripts. |
+| **Notes as the artifact** | The dashboard hero renders merged notes in place of the AI summary, because that is the thing the research says people come back for. |
+| **Safety** | `src/lib/utils/markdown.ts` renders notes with `textContent` only and **never emits heading elements** — model output cannot inject markup, and a model that emits `##` cannot break the page's document outline or the accessibility audit. 8 unit tests cover escaping, list grouping and bold runs. |
+
+Also fixed in this pass: **project plans could be approved without being readable.** The panel showed
+"3 tasks · 2 milestones · 1 risk" next to an Approve button. It now expands into objectives, tasks,
+milestones, dependencies and risks. Approving something you cannot see is the same failure as acting
+on a meeting you did not select.
+
 ## 5. What is still missing — ranked for the next pass
 
-The market says the biggest remaining gap is the one MeetDolff has not closed: **Granola's core
-loop is "your notes, enhanced."** MeetDolff still has no way for a user to type during a meeting
-and have the AI merge their rough notes with the transcript. That is a product-shaped hole, not a
-polish item, and it is the single highest-value next feature.
+*(The notes-merge loop listed here was built in v0.3.0 — see §5b. The rest still stands.)*
 
-Second: **recording is still invisible while you are in the call.** The REC badge lives on the
+**Recording is still invisible while you are in the call.** The REC badge lives on the
 toolbar icon; there is no in-page indicator and no in-call elapsed time. Every serious competitor
 shows the user that capture is live. (An overlay content script would need a new permission and a
 deliberate policy decision about host access — worth doing, worth doing carefully.)
 
 Third, in descending value:
 
-1. **Notes-merge loop** (above): a notes box in the side panel, transcript-aware enhancement.
+1. ~~Notes-merge loop~~ — delivered in v0.3.0 (§5b).
 2. **In-call recording indicator** + elapsed timer.
 3. **Diarization adapter** (Pyannote or similar) — the transcript editor already supports manual
    speaker labels, so the UI is ready.

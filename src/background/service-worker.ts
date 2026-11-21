@@ -13,6 +13,7 @@ import { SUMMARY_SYSTEM, summaryPrompt } from '../lib/ai/prompts.js';
 import { parseMeetingSummary, applyMeetingSummary } from '../lib/ai/meeting-intelligence.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
 import { MEMORY_FORMAT_VERSION, type Meeting, type ProviderSettings, type RecordingSession } from '../lib/types.js';
+import { clearLiveNotes, notesForSession, readLiveNotes } from '../lib/notes/live.js';
 
 const SESSION_KEY = 'recordingSession';
 
@@ -175,6 +176,9 @@ async function handleRecordingStopped(recordingSessionId: string, mime: string, 
   const durationSec = Math.max(1, Math.round((now.getTime() - started.getTime()) / 1000));
   const meetingId = newId('meet');
   const blob = new Blob([buffer], { type: mime || 'audio/webm' });
+  // Notes the user typed while recording belong to this session only.
+  const live = await readLiveNotes();
+  const notes = notesForSession(live, sessionId);
   const meeting: Meeting = {
     id: meetingId,
     title: `Meeting ${started.toLocaleDateString()} ${started.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
@@ -182,6 +186,9 @@ async function handleRecordingStopped(recordingSessionId: string, mime: string, 
     endedAt: now.toISOString(),
     durationSec,
     participants: [],
+    notes,
+    notesEnhanced: null,
+    notesMergedAt: null,
     transcript: liveResult?.segments ?? [],
     transcriptText: liveResult?.text ?? '',
     summary: null,
@@ -206,6 +213,7 @@ async function handleRecordingStopped(recordingSessionId: string, mime: string, 
   // The final blob is authoritative; recovery chunks are cleaned only after
   // the meeting and audio have both been committed.
   await deleteAudioChunks(sessionId);
+  if (notes) await clearLiveNotes();
   await setSession({ ...idleSession(), state: 'idle' });
   chrome.runtime.sendMessage({ type: 'MEETING_SAVED', meetingId }).catch(() => undefined);
 

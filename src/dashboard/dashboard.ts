@@ -37,6 +37,7 @@ import {
   pluralize,
 } from '../lib/utils/format.js';
 import type { CalendarEvent, Meeting } from '../lib/types.js';
+import { renderNotesMarkdown } from '../lib/utils/markdown.js';
 import { mountTranscript } from './transcript-editor.js';
 import { loadProviderSettings } from '../lib/settings-store.js';
 import { createProvider } from '../lib/ai/provider.js';
@@ -142,22 +143,30 @@ function renderHero(): void {
   hero.replaceChildren();
 
   const main = document.createElement('div');
+  const merged = latest.notesEnhanced?.trim() ?? '';
   const eyebrow = document.createElement('p');
   eyebrow.className = 'hero__eyebrow';
-  eyebrow.textContent = `Latest · ${formatWhen(latest.startedAt)}`;
+  eyebrow.textContent = merged
+    ? `Latest · your notes, merged with the transcript · ${formatWhen(latest.startedAt)}`
+    : `Latest · ${formatWhen(latest.startedAt)}`;
 
   const title = document.createElement('h2');
   title.className = 'hero__title';
   title.id = 'heroTitle';
   title.textContent = latest.title;
 
-  const summary = document.createElement('p');
-  summary.className = 'hero__summary';
-  summary.textContent =
-    latest.summary?.trim() ||
-    (latest.transcriptText.trim()
-      ? 'No summary yet — open the side panel and choose “Summarize” to turn this transcript into decisions and action items.'
-      : 'No transcript yet — open the side panel and transcribe this recording, then summarize it.');
+  // Merged notes are Markdown and get rendered; a plain summary stays plain text.
+  const summary: HTMLElement = document.createElement(merged ? 'div' : 'p');
+  summary.className = merged ? 'hero__summary notes-body notes-body--bare hero__notes' : 'hero__summary';
+  if (merged) {
+    summary.appendChild(renderNotesMarkdown(merged));
+  } else {
+    summary.textContent =
+      latest.summary?.trim() ||
+      (latest.transcriptText.trim()
+        ? 'No summary yet — open the side panel and choose “Summarize” to turn this transcript into decisions and action items.'
+        : 'No transcript yet — open the side panel and transcribe this recording, then summarize it.');
+  }
 
   // One compact fact line beats a grid of half-filled number cells.
   const meta = document.createElement('p');
@@ -167,6 +176,7 @@ function renderHero(): void {
     pluralize(latest.transcript.length, 'segment'),
     countIfAny(latest.decisions.length, 'decision'),
     countIfAny(latest.openQuestions.length, 'open question'),
+    !merged && (latest.notes ?? '').trim() ? 'notes not merged' : '',
   ].filter(Boolean)) {
     const span = document.createElement('span');
     span.textContent = part;
@@ -448,7 +458,41 @@ async function showDetail(id: string): Promise<void> {
   const transcript = document.createElement('div');
   transcript.className = 'transcript';
 
-  wrap.append(head, toolbar, audioWrap, summaryHeading, staleBox, summary, decHeading, dec);
+  wrap.append(head, toolbar, audioWrap);
+
+  const rawNotes = (m.notes ?? '').trim();
+  if (rawNotes || m.notesEnhanced) {
+    const notesHeading = document.createElement('h4');
+    notesHeading.append('Your notes');
+    if (m.notesEnhanced) {
+      const merged = document.createElement('span');
+      merged.className = m.notesStale ? 'tag warn' : 'tag';
+      merged.style.marginLeft = '6px';
+      merged.textContent = m.notesStale ? 'Merged · notes changed since' : 'Merged with transcript';
+      notesHeading.append(' ', merged);
+    }
+    const notesBlock = document.createElement('div');
+    notesBlock.className = m.notesEnhanced ? 'notes-body' : 'notes-block';
+    if (m.notesEnhanced) notesBlock.appendChild(renderNotesMarkdown(m.notesEnhanced));
+    else notesBlock.textContent = rawNotes;
+    wrap.append(notesHeading, notesBlock);
+    if (m.notesEnhanced && rawNotes) {
+      const rawToggle = document.createElement('details');
+      rawToggle.style.marginTop = 'var(--s2)';
+      const sum = document.createElement('summary');
+      sum.className = 'small faint';
+      sum.style.cursor = 'pointer';
+      sum.textContent = 'Show my original notes';
+      const rawPre = document.createElement('div');
+      rawPre.className = 'notes-block';
+      rawPre.style.marginTop = 'var(--s2)';
+      rawPre.textContent = rawNotes;
+      rawToggle.append(sum, rawPre);
+      wrap.append(rawToggle);
+    }
+  }
+
+  wrap.append(summaryHeading, staleBox, summary, decHeading, dec);
   if (questions.length) wrap.append(qHeading, q);
   wrap.append(actHeading, act, trHeading, transcript);
 
@@ -617,44 +661,81 @@ async function refreshProjectsFor(meetingId: string): Promise<void> {
     return;
   }
   projectList.replaceChildren();
+
   for (const p of plans) {
-    const div = document.createElement('div');
-    div.className = 'row';
-    const main = document.createElement('div');
-    main.className = 'row-main';
-    const title = document.createElement('p');
-    title.className = 'row-title';
+    // A plan must be readable before it can be approved: the old row showed only counts and
+    // an Approve button, which asked the user to sign off on content they could not see.
+    const item = document.createElement('details');
+    item.className = 'panel panel--quiet plan';
+    item.style.marginBottom = 'var(--s3)';
+
+    const summary = document.createElement('summary');
+    summary.style.cssText = 'cursor: pointer; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap;';
+    const title = document.createElement('span');
+    title.style.cssText = 'font-weight: 600;';
     title.textContent = p.title;
-    if (!p.approved) {
-      const tag = document.createElement('span');
-      tag.className = 'tag warn';
-      tag.textContent = 'Pending approval';
-      title.append(' ', tag);
-    }
-    const meta = document.createElement('p');
-    meta.className = 'row-meta';
-    for (const part of [
+    const counts = document.createElement('span');
+    counts.className = 'small faint';
+    counts.textContent = joinMeta([
       pluralize(p.tasks.length, 'task'),
       pluralize(p.milestones.length, 'milestone'),
       countIfAny(p.risks.length, 'risk'),
-    ].filter(Boolean)) {
-      const span = document.createElement('span');
-      span.textContent = part;
-      meta.appendChild(span);
-    }
-    main.append(title, meta);
+    ]);
+    const stateTag = document.createElement('span');
+    stateTag.className = p.approved ? 'tag' : 'tag warn';
+    stateTag.textContent = p.approved ? 'Approved' : 'Pending approval';
+    summary.append(title, counts, stateTag);
 
+    const body = document.createElement('div');
+    body.style.marginTop = 'var(--s3)';
+    const section = (heading: string, items: string[], ordered = false) => {
+      if (items.length === 0) return;
+      const h = document.createElement('h4');
+      h.textContent = heading;
+      h.style.cssText =
+        'font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin: var(--s3) 0 var(--s2);';
+      const list = document.createElement(ordered ? 'ol' : 'ul');
+      list.style.cssText = 'margin: 0; padding-left: var(--s5); font-size: 13.5px;';
+      for (const text of items) {
+        const li = document.createElement('li');
+        li.style.marginBottom = '4px';
+        li.textContent = text;
+        list.appendChild(li);
+      }
+      body.append(h, list);
+    };
+
+    section('Objectives', p.objectives);
+    section(
+      'Tasks',
+      p.tasks.map((t) => {
+        const bits = joinMeta([t.owner ? t.owner : null, t.deadline ? `due ${t.deadline}` : null]);
+        return bits ? `${t.text} — ${bits}` : t.text;
+      }),
+      true,
+    );
+    section('Milestones', p.milestones.map((ms) => (ms.date ? `${ms.text} — ${ms.date}` : ms.text)));
+    section('Dependencies', p.dependencies);
+    section('Risks', p.risks);
+
+    const actions = document.createElement('div');
+    actions.className = 'toolbar';
+    actions.style.marginBottom = '0';
     const approve = document.createElement('button');
     approve.className = p.approved ? 'btn btn-sm btn-ghost' : 'btn btn-sm btn-primary';
-    approve.textContent = p.approved ? 'Approved' : 'Approve';
+    approve.textContent = p.approved ? 'Approved' : 'Approve this plan';
     approve.disabled = p.approved;
     approve.addEventListener('click', async () => {
       const { putProject } = await import('../lib/db.js');
       await putProject({ ...p, approved: true });
+      showSuccess(`Plan “${p.title}” approved.`);
       await refreshProjectsFor(meetingId);
     });
-    div.append(main, approve);
-    projectList.appendChild(div);
+    actions.appendChild(approve);
+    body.appendChild(actions);
+
+    item.append(summary, body);
+    projectList.appendChild(item);
   }
 }
 

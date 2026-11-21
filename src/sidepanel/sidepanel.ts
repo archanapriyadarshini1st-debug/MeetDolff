@@ -24,7 +24,8 @@ import { generateReport, generateFlashcards, generateQuiz, generateMindmap } fro
 import { parseProjectPlan } from '../lib/projects/converter.js';
 import { applyMeetingSummary, parseMeetingSummary } from '../lib/ai/meeting-intelligence.js';
 import { countIfAny, formatDuration, formatWhen, joinMeta, pluralize } from '../lib/utils/format.js';
-import type { Meeting, ProviderSettings } from '../lib/types.js';
+import type { Meeting, ProviderSettings, RecordingSession } from '../lib/types.js';
+import { mountNotes } from './notes.js';
 import { loadProviderSettings } from '../lib/settings-store.js';
 import { parseSuggestions, SUGGEST_SYSTEM, suggestionPrompt, SuggestionPacer } from '../lib/ai/suggestions.js';
 import { createTranscriptionProvider } from '../lib/transcription/factory.js';
@@ -40,6 +41,26 @@ const targetMeta = $('targetMeta');
 
 let meetings: Meeting[] = [];
 let targetId: string | null = null;
+let session: RecordingSession | null = null;
+
+const notes = mountNotes({
+  getTarget: () => currentTarget(),
+  getSession: () => session,
+  onMeetingUpdated: (updated) => {
+    meetings = meetings.map((m) => (m.id === updated.id ? updated : m));
+  },
+  showError: (msg) => showError(msg),
+  showNotice: (msg) => showSuccess(msg),
+});
+
+async function refreshSession(): Promise<void> {
+  try {
+    const res = (await chrome.runtime.sendMessage({ type: 'GET_SESSION' })) as { session?: RecordingSession } | undefined;
+    session = res?.session ?? null;
+  } catch {
+    session = null;
+  }
+}
 
 /* ------------------------------------------------------------------ notices */
 
@@ -201,8 +222,12 @@ function renderTarget(): void {
 }
 
 targetSelect.addEventListener('change', () => {
-  targetId = targetSelect.value || null;
-  renderTarget();
+  void (async () => {
+    await notes.flush();
+    targetId = targetSelect.value || null;
+    renderTarget();
+    notes.render();
+  })();
 });
 
 /* ------------------------------------------------------------------ processing */
@@ -343,11 +368,15 @@ async function refreshRecent(): Promise<void> {
 
     row.append(main);
     row.addEventListener('click', () => {
-      targetId = m.id;
-      targetSelect.value = m.id;
-      renderTarget();
-      refreshRecent();
-      targetSelect.focus();
+      void (async () => {
+        await notes.flush();
+        targetId = m.id;
+        targetSelect.value = m.id;
+        renderTarget();
+        notes.render();
+        await refreshRecent();
+        targetSelect.focus();
+      })();
     });
     recentList.appendChild(row);
   }
@@ -476,14 +505,28 @@ void chrome.storage.local.get('suggestionsEnabled').then((r) => {
 });
 
 chrome.runtime.onMessage.addListener((msg: any) => {
+  if (msg?.type === 'SESSION_UPDATED') {
+    void refreshSession().then(() => notes.render());
+  }
   if (msg?.type === 'TRANSCRIPTION_FINAL') {
     pacer.add(String(msg.text ?? ''));
     void maybeSuggest();
   }
-  if (msg?.type === 'MEETING_SAVED' || msg?.type === 'MEETING_PROCESSED') void refreshRecent();
+  if (msg?.type === 'MEETING_SAVED' || msg?.type === 'MEETING_PROCESSED') {
+    // The recording just became a meeting, so live notes now belong to a saved record.
+    void (async () => {
+      await refreshSession();
+      await refreshRecent();
+      notes.render();
+    })();
+  }
 renderExamples();
   if (msg?.type === 'PROCESSING_ERROR') showError(String(msg.error ?? 'Post-recording processing failed.'));
 });
 
-void refreshRecent();
+void (async () => {
+  await refreshSession();
+  await refreshRecent();
+  notes.render();
+})();
 renderExamples();
